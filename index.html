@@ -467,7 +467,7 @@
   <div id="app-stage" style="display:none;">
 
   <!-- ==================== DEMO ROLE BAR ==================== -->
-  <div class="demo-auth-bar" id="demo-auth-bar">
+  <div class="demo-auth-bar" id="demo-auth-bar" style="display:none;">
     <div class="demo-auth-left">
       <button class="demo-action-btn" onclick="showLandingPage()" title="Return to ChargeEase EV Landing Page">&larr; Landing page</button>
       <span class="demo-label">Workspace role:</span>
@@ -493,15 +493,18 @@
 
   <!-- ==================== HEADER ==================== -->
   <header class="bolt-header">
-    <div class="brand-badge" onclick="navigateToRoleHome()">
-      <div class="logo-bolt-icon">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z"/>
-        </svg>
-      </div>
-      <div>
-        <div class="brand-title">ChargeEase <span class="ev-pill">EV</span></div>
-        <div class="brand-sub">Reachable peer-to-peer charging</div>
+    <div style="display:flex; align-items:center; gap:14px;">
+      <button type="button" class="demo-action-btn" onclick="showLandingPage()" style="height:38px; padding:0 14px;">&larr; Home</button>
+      <div class="brand-badge" onclick="navigateToRoleHome()">
+        <div class="logo-bolt-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z"/>
+          </svg>
+        </div>
+        <div>
+          <div class="brand-title">ChargeEase <span class="ev-pill">EV</span></div>
+          <div class="brand-sub">Reachable peer-to-peer charging</div>
+        </div>
       </div>
     </div>
 
@@ -533,6 +536,8 @@
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         <span class="user-status-dot"></span>
       </div>
+
+      <button type="button" class="demo-action-btn" onclick="handleLogout()" style="height:38px; padding:0 14px;">Sign Out</button>
     </div>
   </header>
 
@@ -547,32 +552,32 @@
 
   <!-- ==================== NAVIGATION TABS ==================== -->
   <nav class="app-tabs-bar" id="app-tabs-bar">
-    <!-- Driver Navigation -->
-    <div class="nav-tab-item active" data-tab="driver-dash" data-role="driver" onclick="switchTab('driver-dash')">Dashboard</div>
-    <div class="nav-tab-item" data-tab="explore" data-role="driver" onclick="switchTab('explore')">Find chargers</div>
-    <div class="nav-tab-item" data-tab="range-matcher" data-role="driver" onclick="switchTab('range-matcher')">Reachability matcher</div>
+    <!-- Driver Navigation (Focused 4 Core Tabs) -->
+    <div class="nav-tab-item" data-tab="driver-dash" data-role="driver" data-secondary="true" style="display:none;" onclick="switchTab('driver-dash')">Dashboard</div>
+    <div class="nav-tab-item active" data-tab="explore" data-role="driver" onclick="switchTab('explore')">Find Chargers</div>
+    <div class="nav-tab-item" data-tab="range-matcher" data-role="driver" onclick="switchTab('range-matcher')">Range Matcher</div>
     <div class="nav-tab-item" data-tab="telemetry" data-role="driver" id="telemetry-tab-pill" onclick="switchTab('telemetry')">
-      Live session
+      Live Session
       <span class="status-dot green" id="live-session-dot" style="display:none;"></span>
     </div>
-    <div class="nav-tab-item" data-tab="driver-bookings" data-role="driver" onclick="switchTab('driver-bookings')">Bookings</div>
-    <div class="nav-tab-item" data-tab="wallet" data-role="driver" onclick="switchTab('wallet')">Wallet</div>
-    <div class="nav-tab-item" data-tab="garage" data-role="driver" onclick="switchTab('garage')">Garage &amp; profile</div>
+    <div class="nav-tab-item" data-tab="driver-bookings" data-role="driver" onclick="switchTab('driver-bookings')">My Bookings</div>
+    <div class="nav-tab-item" data-tab="wallet" data-role="driver" data-secondary="true" style="display:none;" onclick="switchTab('wallet')">Wallet</div>
+    <div class="nav-tab-item" data-tab="garage" data-role="driver" data-secondary="true" style="display:none;" onclick="switchTab('garage')">Garage &amp; profile</div>
 
-    <!-- Host Navigation -->
-    <div class="nav-tab-item" data-tab="host-dash" data-role="host" onclick="switchTab('host-dash')">Host overview</div>
-    <div class="nav-tab-item" data-tab="host-chargers" data-role="host" onclick="switchTab('host-chargers')">Chargers</div>
-    <div class="nav-tab-item" data-tab="host-bookings" data-role="host" onclick="switchTab('host-bookings')">Booking requests</div>
-    <div class="nav-tab-item" data-tab="host-earnings" data-role="host" onclick="switchTab('host-earnings')">Earnings &amp; payouts</div>
-    <div class="nav-tab-item" data-tab="host-profile" data-role="host" onclick="switchTab('host-profile')">Host profile</div>
+    <!-- Host Navigation (Focused 2 Core Tabs) -->
+    <div class="nav-tab-item" data-tab="host-dash" data-role="host" onclick="switchTab('host-dash')">Host Console</div>
+    <div class="nav-tab-item" data-tab="host-chargers" data-role="host" data-secondary="true" style="display:none;" onclick="switchTab('host-chargers')">Chargers</div>
+    <div class="nav-tab-item" data-tab="host-bookings" data-role="host" data-secondary="true" style="display:none;" onclick="switchTab('host-bookings')">Booking requests</div>
+    <div class="nav-tab-item" data-tab="host-earnings" data-role="host" onclick="switchTab('host-earnings')">Earnings &amp; Payouts</div>
+    <div class="nav-tab-item" data-tab="host-profile" data-role="host" data-secondary="true" style="display:none;" onclick="switchTab('host-profile')">Host profile</div>
 
-    <!-- Admin Navigation -->
-    <div class="nav-tab-item" data-tab="admin-analytics" data-role="admin" onclick="switchTab('admin-analytics')">Analytics &amp; bookings</div>
-    <div class="nav-tab-item" data-tab="admin-hosts" data-role="admin" onclick="switchTab('admin-hosts')">Host verification</div>
-    <div class="nav-tab-item" data-tab="admin-chargers" data-role="admin" onclick="switchTab('admin-chargers')">Charger verification</div>
-    <div class="nav-tab-item" data-tab="admin-users" data-role="admin" onclick="switchTab('admin-users')">Users</div>
+    <!-- Admin Navigation (Focused 3 Core Tabs) -->
+    <div class="nav-tab-item" data-tab="admin-analytics" data-role="admin" onclick="switchTab('admin-analytics')">Overview</div>
+    <div class="nav-tab-item" data-tab="admin-hosts" data-role="admin" onclick="switchTab('admin-hosts')">Host Verification</div>
+    <div class="nav-tab-item" data-tab="admin-chargers" data-role="admin" data-secondary="true" style="display:none;" onclick="switchTab('admin-chargers')">Charger verification</div>
+    <div class="nav-tab-item" data-tab="admin-users" data-role="admin" data-secondary="true" style="display:none;" onclick="switchTab('admin-users')">Users</div>
     <div class="nav-tab-item" data-tab="admin-disputes" data-role="admin" onclick="switchTab('admin-disputes')">Disputes</div>
-    <div class="nav-tab-item" data-tab="admin-logs" data-role="admin" onclick="switchTab('admin-logs')">Audit logs</div>
+    <div class="nav-tab-item" data-tab="admin-logs" data-role="admin" data-secondary="true" style="display:none;" onclick="switchTab('admin-logs')">Audit logs</div>
   </nav>
 
   <!-- ==================== MAIN VIEW CONTAINER ==================== -->
@@ -581,7 +586,7 @@
     <!-- ==================== DRIVER VIEWS ==================== -->
 
     <!-- D1: DRIVER HOME WORKSPACE -->
-    <div id="view-driver-dash" class="tab-view active">
+    <div id="view-driver-dash" class="tab-view" style="display:none;">
       <div class="panel-header" style="margin-bottom:16px;">
         <div>
           <h1 style="font-size:22px; font-weight:700; letter-spacing:-0.02em;" id="driver-dash-welcome">Driver workspace</h1>
@@ -667,12 +672,12 @@
     </div>
 
     <!-- D2: MAP-CENTRIC CHARGER DISCOVERY -->
-    <div id="view-explore" class="tab-view" style="display:none;">
+    <div id="view-explore" class="tab-view active">
       <div class="discovery-grid">
         <!-- Sidebar with Filters, Sorting & List -->
         <div class="station-sidebar">
           <div class="sidebar-header">
-            <div class="city-select-row">
+            <div class="city-select-row" style="display:none;">
               <span style="font-size:12px; font-weight:600; color:var(--text-secondary);">Service corridor</span>
               <select id="city-selector" class="custom-select" onchange="handleCityChange(this.value)" aria-label="Select service corridor city">
                 <option value="Delhi NCR" selected>Delhi NCR (Greater Noida Corridor)</option>
@@ -685,7 +690,7 @@
           </div>
 
           <!-- Multi-Attribute Filter & Sort Toolbar -->
-          <div class="filter-toolbar">
+          <div class="filter-toolbar" style="display:none;">
             <select id="filter-connector" class="filter-select" onchange="loadStationsFromApi()" title="Filter by connector" aria-label="Filter chargers by connector type">
               <option value="all">Connector: All</option>
               <option value="Type 2">Type 2 AC</option>

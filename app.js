@@ -725,7 +725,7 @@ async function handleFormRegisterHost(e) {
 function navigateToRoleHome() {
   const homeTab = state.currentRole === 'host'
     ? 'host-dash'
-    : (state.currentRole === 'admin' ? 'admin-analytics' : 'driver-dash');
+    : (state.currentRole === 'admin' ? 'admin-analytics' : 'explore');
   switchTab(homeTab);
 }
 
@@ -755,10 +755,11 @@ function switchRoleExperience(role, fromHydration = false) {
 
   document.querySelectorAll('#app-tabs-bar .nav-tab-item').forEach(tabEl => {
     const tabRole = tabEl.dataset.role;
-    tabEl.style.display = tabRole === role ? 'flex' : 'none';
+    const isSecondary = tabEl.dataset.secondary === 'true';
+    tabEl.style.display = (tabRole === role && !isSecondary) ? 'flex' : 'none';
   });
 
-  const defaultTab = role === 'host' ? 'host-dash' : (role === 'admin' ? 'admin-analytics' : 'driver-dash');
+  const defaultTab = role === 'host' ? 'host-dash' : (role === 'admin' ? 'admin-analytics' : 'explore');
   switchTab(defaultTab);
 }
 
@@ -1153,37 +1154,26 @@ function renderStationsSidebar() {
   }
 
   container.innerHTML = state.stations.map(st => {
-    const isFav = state.favoriteIds.includes(st.id);
     const selected = state.selectedStationId === st.id ? 'selected' : '';
     const tariffText = st.billingType === 'time' ? formatInr(st.timeRatePerHour, 0) : formatInr(st.pricePerKwh, 0);
-    const tariffSub = st.billingType === 'time' ? '/ hour' : '/ kWh';
+    const tariffSub = st.billingType === 'time' ? '/ hr' : '/ kWh';
     const addressLine = st.isAddressUnlocked ? st.address : (st.approximateAddress || st.address);
 
     return `
       <div class="station-card ${selected}" id="card-${escapeHtml(st.id)}" onclick="onStationCardClick('${escapeHtml(st.id)}')">
         <div class="card-top-row">
-          <div>
-            <div class="station-name">${escapeHtml(st.name)}</div>
-            <div style="font-size:11px; color:var(--text-secondary); margin-top:2px;">
-              Host: ${escapeHtml(st.host)} ${st.hostVerified ? '<span style="color:var(--accent-green); font-weight:600;">(Verified)</span>' : '(Pending KYC)'}
-            </div>
-          </div>
+          <div class="station-name">${escapeHtml(st.name)}</div>
           <span class="status-badge ${badgeClass(st.status)}">
             <span class="status-dot ${statusDotClass(st.status)}"></span>
             ${escapeHtml(formatStatusLabel(st.status))}
           </span>
         </div>
 
-        <div class="station-address">
-          ${escapeHtml(addressLine)}
-          ${!st.isAddressUnlocked ? '<span style="color:var(--text-muted);"> (Exact gate locked until booking)</span>' : ''}
-        </div>
+        <div class="station-address">${escapeHtml(addressLine)}</div>
 
         <div class="specs-strip">
           <span class="spec-pill">${escapeHtml(st.connectorType)}</span>
           <span class="spec-pill tabular">${st.powerKw} kW</span>
-          <span class="spec-pill">${st.billingType === 'time' ? 'Time Slot' : 'Metered kWh'}</span>
-          <span class="spec-pill tabular">Rating ${Number(st.rating || 4.8).toFixed(1)}</span>
         </div>
 
         <div class="card-bottom-row">
@@ -1194,10 +1184,9 @@ function renderStationsSidebar() {
           <span class="distance-tag tabular">${Number(st.distanceKm).toFixed(1)} km</span>
         </div>
 
-        <div style="display:flex; gap:6px; margin-top:10px;" onclick="event.stopPropagation()">
-          <button class="btn-secondary btn-sm" style="flex:1;" onclick="openStationDetailModal('${escapeHtml(st.id)}')">Details &amp; slots</button>
-          <button class="btn-bolt btn-sm" style="flex:1;" onclick="openBookingModal('${escapeHtml(st.id)}')" ${st.status !== 'available' ? 'disabled' : ''}>Reserve</button>
-          <button class="btn-secondary btn-sm" onclick="toggleFavoriteCharger('${escapeHtml(st.id)}')" title="Bookmark charger">${isFav ? 'Saved' : 'Save'}</button>
+        <div style="display:flex; gap:10px; margin-top:12px;" onclick="event.stopPropagation()">
+          <button class="btn-secondary btn-sm" style="flex:1;" onclick="openStationDetailModal('${escapeHtml(st.id)}')">Details</button>
+          <button class="btn-bolt btn-sm" style="flex:1.4;" onclick="openBookingModal('${escapeHtml(st.id)}')" ${st.status !== 'available' ? 'disabled' : ''}>Book Slot</button>
         </div>
       </div>`;
   }).join('');
