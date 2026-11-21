@@ -554,7 +554,7 @@ async function handleApiRequest(req, res, pathname, queryParams) {
       const bookedSlots = db.prepare(`
         SELECT start_time, end_time, status, booking_date
         FROM bookings
-        WHERE charger_id = ? AND booking_date = ? AND status IN ('pending', 'confirmed', 'active')
+        WHERE charger_id = ? AND booking_date = ? AND status IN ('pending', 'confirmed', 'active', 'completed')
         ORDER BY start_time ASC
       `).all(chargerId, dateStr);
 
@@ -746,23 +746,29 @@ async function handleApiRequest(req, res, pathname, queryParams) {
 
       const activeBooking = db.prepare(`
         SELECT b.*, c.name AS charger_name, c.address AS charger_address, c.access_instructions,
-               c.power_kw, c.connector_type, u.name AS host_name, u.phone AS host_phone
+               c.code AS charger_code, c.power_kw, c.connector_type, u.name AS host_name, u.phone AS host_phone
         FROM bookings b
         JOIN chargers c ON b.charger_id = c.id
         JOIN users u ON b.host_id = u.id
-        WHERE b.driver_id = ? AND b.status IN ('confirmed', 'active')
+        WHERE b.driver_id = ? AND b.status IN ('pending', 'confirmed', 'active')
         ORDER BY b.booking_date ASC, b.start_time ASC
         LIMIT 1
       `).get(user.id);
 
       const recentBookings = db.prepare(`
-        SELECT b.*, c.name AS charger_name
+        SELECT b.*, c.name AS charger_name,
+               CASE WHEN b.status IN ('confirmed', 'active', 'completed') THEN c.address ELSE c.city || ' (Protected until confirmed)' END AS charger_address,
+               c.code AS charger_code, c.power_kw, c.connector_type, u.name AS host_name,
+               CASE WHEN b.status IN ('confirmed', 'active', 'completed') THEN u.phone ELSE NULL END AS host_phone
         FROM bookings b
         JOIN chargers c ON b.charger_id = c.id
+        JOIN users u ON b.host_id = u.id
         WHERE b.driver_id = ?
         ORDER BY b.created_at DESC
-        LIMIT 5
+        LIMIT 20
       `).all(user.id);
+
+      const completedBookings = recentBookings.filter(b => b.status === 'completed');
 
       const recentSessions = db.prepare(`
         SELECT s.*, c.name AS charger_name, c.code AS charger_code
@@ -800,6 +806,7 @@ async function handleApiRequest(req, res, pathname, queryParams) {
         vehicles,
         activeBooking: activeBooking || null,
         recentBookings,
+        completedBookings,
         recentSessions
       });
     }
@@ -926,7 +933,13 @@ async function handleApiRequest(req, res, pathname, queryParams) {
       if (!user) return sendJson(res, 401, { error: 'Authentication required' });
 
       const body = await parseBody(req);
-      const { chargerId, vehicleId, bookingDate, startTime, durationMins, billingType, estimatedKwh } = body;
+      const chargerId = body.chargerId || body.charger_id;
+      const vehicleId = body.vehicleId || body.vehicle_id || null;
+      const bookingDate = body.bookingDate || body.booking_date;
+      const startTime = body.startTime || body.start_time;
+      const durationMins = body.durationMins || body.duration_mins;
+      const billingType = body.billingType || body.billing_type;
+      const estimatedKwh = body.estimatedKwh || body.estimated_kwh;
 
       if (!chargerId || !bookingDate || !startTime || !durationMins) {
         return sendJson(res, 400, { error: 'Charger, date, start time, and duration are required' });
@@ -1037,15 +1050,34 @@ async function handleApiRequest(req, res, pathname, queryParams) {
           booking: {
             id: bookingId,
             bookingCode,
+            booking_code: bookingCode,
+            driver_id: user.id,
+            host_id: charger.host_id,
+            chargerId: charger.id,
+            charger_id: charger.id,
             chargerName: charger.name,
+            charger_name: charger.name,
+            charger_address: charger.address,
             bookingDate,
+            booking_date: bookingDate,
             startTime,
+            start_time: startTime,
             endTime,
-            durationMins,
+            end_time: endTime,
+            durationMins: parseInt(durationMins),
+            duration_mins: parseInt(durationMins),
+            status: 'confirmed',
             totalAmount,
+            total_amount: totalAmount,
+            base_amount: baseAmount,
             platformFee,
+            platform_fee: platformFee,
             gstFee,
+            gst_fee: gstFee,
+            hostPayout,
+            host_payout: hostPayout,
             billingType: isTime ? 'time' : 'metered',
+            billing_type: isTime ? 'time' : 'metered',
             walletBalanceRemaining: user.wallet_balance - totalAmount
           }
         });
@@ -1115,6 +1147,84 @@ async function handleApiRequest(req, res, pathname, queryParams) {
         db.exec('ROLLBACK;');
         throw err;
       }
+    }
+
+    // Complete Booking Slot (preserves completed booking in history & survives serverless rotation)
+    if (pathname.match(/^\/api\/bookings\/([a-zA-Z0-9_-]+)\/complete$/) && (req.method === 'POST' || req.method === 'PUT')) {
+      if (!user) return sendJson(res, 401, { error: 'Authentication required' });
+      const bookingId = pathname.split('/')[3];
+      const body = await parseBody(req);
+
+      let bk = db.prepare('SELECT * FROM bookings WHERE id = ? OR booking_code = ?').get(bookingId, bookingId);
+
+      // Reconstruct completed booking if Vercel cold-started a fresh /tmp/chargeease.db while slot was running
+      if (!bk) {
+        const chgId = body.chargerId || body.charger_id;
+        let chg = chgId ? db.prepare('SELECT * FROM chargers WHERE id = ? OR code = ?').get(chgId, chgId) : null;
+        if (!chg) chg = db.prepare("SELECT * FROM chargers WHERE verification_status = 'approved' LIMIT 1").get();
+        if (!chg) return sendJson(res, 404, { error: 'Booking not found' });
+
+        const dur = parseInt(body.durationMins || body.duration_mins || 60, 10);
+        const hrs = dur / 60;
+        const isTime = (body.billingType || body.billing_type || chg.billing_type) === 'time';
+        const baseAmt = Number(body.baseAmount || body.base_amount || (isTime ? hrs * chg.time_rate_per_hour : hrs * chg.power_kw * 0.75 * chg.price_per_kwh).toFixed(2));
+        const pFee = Number((baseAmt * 0.10).toFixed(2));
+        const gFee = Number((pFee * 0.18).toFixed(2));
+        const totAmt = Number((baseAmt + pFee + gFee).toFixed(2));
+        const now = new Date();
+        const bDate = body.bookingDate || body.booking_date || now.toISOString().slice(0, 10);
+        const sTime = body.startTime || body.start_time || now.toTimeString().slice(0, 5);
+        const eTime = body.endTime || body.end_time || new Date(now.getTime() + dur * 60000).toTimeString().slice(0, 5);
+        const bCode = body.bookingCode || body.booking_code || ('CE-BK-' + Math.floor(1000 + Math.random() * 9000));
+
+        db.prepare(`
+          INSERT OR IGNORE INTO bookings (
+            id, booking_code, driver_id, host_id, charger_id, vehicle_id,
+            booking_date, start_time, end_time, duration_mins, status,
+            billing_type, estimated_kwh, base_amount, platform_fee, gst_fee,
+            deposit_amount, total_amount, host_payout, payment_status
+          ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, 'completed', ?, ?, ?, ?, ?, 50.00, ?, ?, 'paid')
+        `).run(
+          bookingId, bCode, user.id, chg.host_id, chg.id,
+          bDate, sTime, eTime, dur, isTime ? 'time' : 'metered',
+          parseFloat(body.energyKwh || body.estimatedKwh || 5.0),
+          baseAmt, pFee, gFee, totAmt, baseAmt
+        );
+
+        bk = db.prepare('SELECT * FROM bookings WHERE id = ?').get(bookingId);
+      } else {
+        if (bk.driver_id !== user.id && bk.host_id !== user.id && user.role !== 'admin') {
+          return sendJson(res, 403, { error: 'Unauthorized to complete this booking' });
+        }
+        if (bk.status !== 'completed') {
+          db.exec('BEGIN TRANSACTION;');
+          try {
+            db.prepare("UPDATE bookings SET status = 'completed', payment_status = 'paid' WHERE id = ?").run(bk.id);
+            db.prepare("UPDATE chargers SET status = 'available', total_sessions = total_sessions + 1 WHERE id = ?").run(bk.charger_id);
+            db.prepare('UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?').run(bk.host_payout || bk.base_amount, bk.host_id);
+            db.exec('COMMIT;');
+          } catch (err) {
+            db.exec('ROLLBACK;');
+            throw err;
+          }
+          bk = db.prepare('SELECT * FROM bookings WHERE id = ?').get(bk.id);
+        }
+      }
+
+      const hydrated = db.prepare(`
+        SELECT b.*, c.name AS charger_name, c.address AS charger_address, c.code AS charger_code,
+               c.power_kw, c.connector_type, u.name AS host_name, u.phone AS host_phone
+        FROM bookings b
+        JOIN chargers c ON b.charger_id = c.id
+        JOIN users u ON b.host_id = u.id
+        WHERE b.id = ?
+      `).get(bk.id);
+
+      return sendJson(res, 200, {
+        success: true,
+        message: 'Slot completed and preserved in booking history',
+        booking: hydrated || bk
+      });
     }
 
     // =========================================================
@@ -1374,18 +1484,35 @@ async function handleApiRequest(req, res, pathname, queryParams) {
     if (pathname === '/api/sessions/start' && req.method === 'POST') {
       if (!user) return sendJson(res, 401, { error: 'Authentication required' });
       const body = await parseBody(req);
-      const { chargerCode, bookingId } = body;
+      const chargerCode = body.chargerCode || body.charger_code;
+      const chargerId = body.chargerId || body.charger_id;
+      let bookingId = body.bookingId || body.booking_id || null;
 
       let charger = null;
-      if (chargerCode) {
-        charger = db.prepare('SELECT * FROM chargers WHERE UPPER(code) = ?').get(chargerCode.toUpperCase().trim());
+      if (chargerId) {
+        charger = db.prepare('SELECT * FROM chargers WHERE id = ?').get(chargerId);
+      }
+      if (!charger && chargerCode) {
+        charger = db.prepare('SELECT * FROM chargers WHERE UPPER(code) = ?').get(String(chargerCode).toUpperCase().trim());
       }
       if (!charger) {
-        charger = db.prepare("SELECT * FROM chargers WHERE status = 'available' AND verification_status = 'approved' LIMIT 1").get();
+        charger = db.prepare("SELECT * FROM chargers WHERE status = 'available' AND verification_status = 'approved' LIMIT 1").get() ||
+                  db.prepare("SELECT * FROM chargers WHERE verification_status = 'approved' LIMIT 1").get();
       }
 
       if (!charger) {
         return sendJson(res, 400, { error: 'No available charging dock found' });
+      }
+
+      // Auto-link active/confirmed booking for this driver on this charger if bookingId wasn't passed explicitly
+      if (!bookingId) {
+        const linkedBk = db.prepare(`
+          SELECT id FROM bookings
+          WHERE driver_id = ? AND charger_id = ? AND status IN ('confirmed', 'active')
+          ORDER BY booking_date DESC, created_at DESC
+          LIMIT 1
+        `).get(user.id, charger.id);
+        if (linkedBk) bookingId = linkedBk.id;
       }
 
       const sessionId = 'ses-' + Date.now();
@@ -1394,6 +1521,9 @@ async function handleApiRequest(req, res, pathname, queryParams) {
       db.exec('BEGIN TRANSACTION;');
       try {
         db.prepare("UPDATE chargers SET status = 'busy' WHERE id = ?").run(charger.id);
+        if (bookingId) {
+          db.prepare("UPDATE bookings SET status = 'active' WHERE id = ? AND driver_id = ? AND status = 'confirmed'").run(bookingId, user.id);
+        }
 
         db.prepare(`
           INSERT INTO charging_sessions (
@@ -1414,7 +1544,10 @@ async function handleApiRequest(req, res, pathname, queryParams) {
             id: sessionId,
             sessionCode,
             session_code: sessionCode,
+            bookingId: bookingId || null,
+            booking_id: bookingId || null,
             chargerId: charger.id,
+            charger_id: charger.id,
             chargerCode: charger.code,
             chargerName: charger.name,
             powerKw: charger.power_kw,
@@ -1446,12 +1579,36 @@ async function handleApiRequest(req, res, pathname, queryParams) {
       if (!user) return sendJson(res, 401, { error: 'Authentication required' });
       const sessionId = pathname.split('/')[3];
       const body = await parseBody(req);
-      const { energyKwh, elapsedSeconds } = body;
+      const energyKwh = body.energyKwh ?? body.energy_kwh;
+      const elapsedSeconds = body.elapsedSeconds ?? body.elapsed_seconds;
+      const reqBookingId = body.bookingId || body.booking_id || null;
+      const reqChargerId = body.chargerId || body.charger_id || body.chargerCode || body.charger_code || null;
 
-      const ses = db.prepare('SELECT * FROM charging_sessions WHERE id = ?').get(sessionId);
-      if (!ses) return sendJson(res, 404, { error: 'Session not found' });
+      let ses = db.prepare('SELECT * FROM charging_sessions WHERE id = ?').get(sessionId);
+      let chg = ses ? db.prepare('SELECT * FROM chargers WHERE id = ?').get(ses.charger_id) : null;
 
-      const chg = db.prepare('SELECT * FROM chargers WHERE id = ?').get(ses.charger_id);
+      // Survive Vercel serverless container rotation mid-session instead of failing with 404
+      if (!ses) {
+        if (reqChargerId) {
+          chg = db.prepare('SELECT * FROM chargers WHERE id = ? OR UPPER(code) = ?').get(reqChargerId, String(reqChargerId).toUpperCase().trim());
+        }
+        if (!chg) {
+          chg = db.prepare("SELECT * FROM chargers WHERE verification_status = 'approved' LIMIT 1").get();
+        }
+        if (!chg) return sendJson(res, 404, { error: 'Session and charger not found' });
+
+        const fallbackCode = 'SES-' + Math.floor(10000 + Math.random() * 90000);
+        db.prepare(`
+          INSERT OR IGNORE INTO charging_sessions (
+            id, session_code, booking_id, charger_id, driver_id, host_id,
+            instant_power_kw, voltage, current_amps, session_status, is_simulated
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 231.5, ?, 'active', 1)
+        `).run(
+          sessionId, fallbackCode, reqBookingId, chg.id, user.id, chg.host_id,
+          chg.power_kw, parseFloat(((chg.power_kw * 1000) / 231.5).toFixed(1))
+        );
+        ses = db.prepare('SELECT * FROM charging_sessions WHERE id = ?').get(sessionId);
+      }
 
       const kwh = parseFloat(energyKwh) || ses.energy_delivered_kwh || 5.0;
       const durationSecs = parseInt(elapsedSeconds) || ses.duration_seconds || 1800;
@@ -1469,6 +1626,7 @@ async function handleApiRequest(req, res, pathname, queryParams) {
       const gst = parseFloat((platformFee * 0.18).toFixed(2));
       const totalCost = parseFloat((baseCost + platformFee + gst).toFixed(2));
       const hostPayout = baseCost;
+      const targetBookingId = ses.booking_id || reqBookingId;
 
       db.exec('BEGIN TRANSACTION;');
       try {
@@ -1486,8 +1644,8 @@ async function handleApiRequest(req, res, pathname, queryParams) {
         // Release charger
         db.prepare("UPDATE chargers SET status = 'available', total_sessions = total_sessions + 1 WHERE id = ?").run(chg.id);
 
-        // Debit driver wallet if not already prepaid
-        if (!ses.booking_id) {
+        if (!targetBookingId) {
+          // Direct walk-in session without pre-booking: settle wallet and create a completed history booking entry too
           db.prepare('UPDATE users SET wallet_balance = wallet_balance - ? WHERE id = ?').run(totalCost, user.id);
           db.prepare('UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?').run(hostPayout, chg.host_id);
 
@@ -1496,9 +1654,32 @@ async function handleApiRequest(req, res, pathname, queryParams) {
             VALUES (?, ?, ?, ?, 'WALLET', ?, 'success', 'session_debit', ?)
           `).run('pay-' + Date.now(), user.id, sessionId, totalCost, 'TXN-SES-' + Date.now(), `Charging session ${ses.session_code}`);
         } else {
-          // If booked, mark booking complete and credit host
-          db.prepare("UPDATE bookings SET status = 'completed' WHERE id = ?").run(ses.booking_id);
-          db.prepare('UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?').run(hostPayout, chg.host_id);
+          // Ensure linked booking exists (reconstruct if container rotated) and mark completed so it stays visible
+          const existingBk = db.prepare('SELECT * FROM bookings WHERE id = ?').get(targetBookingId);
+          if (existingBk) {
+            db.prepare("UPDATE bookings SET status = 'completed', payment_status = 'paid' WHERE id = ?").run(targetBookingId);
+            db.prepare('UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?').run(hostPayout, chg.host_id);
+          } else {
+            const now = new Date();
+            const durMins = Math.max(15, Math.round(durationSecs / 60));
+            db.prepare(`
+              INSERT OR IGNORE INTO bookings (
+                id, booking_code, driver_id, host_id, charger_id, vehicle_id,
+                booking_date, start_time, end_time, duration_mins, status,
+                billing_type, estimated_kwh, base_amount, platform_fee, gst_fee,
+                deposit_amount, total_amount, host_payout, payment_status
+              ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, 'completed', ?, ?, ?, ?, ?, 50.00, ?, ?, 'paid')
+            `).run(
+              targetBookingId,
+              body.bookingCode || body.booking_code || ('CE-BK-' + Math.floor(1000 + Math.random() * 9000)),
+              user.id, chg.host_id, chg.id,
+              now.toISOString().slice(0, 10),
+              now.toTimeString().slice(0, 5),
+              new Date(now.getTime() + durMins * 60000).toTimeString().slice(0, 5),
+              durMins, chg.billing_type, kwh, baseCost, platformFee, gst, totalCost, hostPayout
+            );
+            db.prepare('UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?').run(hostPayout, chg.host_id);
+          }
         }
 
         // Notifications
@@ -1514,8 +1695,20 @@ async function handleApiRequest(req, res, pathname, queryParams) {
 
         db.exec('COMMIT;');
 
+        const updatedBooking = targetBookingId
+          ? db.prepare(`
+              SELECT b.*, c.name AS charger_name, c.address AS charger_address, c.code AS charger_code,
+                     c.power_kw, c.connector_type, u.name AS host_name, u.phone AS host_phone
+              FROM bookings b
+              JOIN chargers c ON b.charger_id = c.id
+              JOIN users u ON b.host_id = u.id
+              WHERE b.id = ?
+            `).get(targetBookingId)
+          : null;
+
         return sendJson(res, 200, {
           success: true,
+          booking: updatedBooking,
           receipt: {
             sessionCode: ses.session_code,
             chargerName: chg.name,

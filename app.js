@@ -2048,6 +2048,8 @@ async function startLiveChargingSession(station = null, bookingId = null) {
     state.activeSession = {
       id: ses.id,
       sessionCode: ses.session_code || ses.sessionCode || 'SES-LIVE',
+      bookingId: ses.bookingId || ses.booking_id || bookingId || null,
+      chargerId: chg.id || ses.chargerId || ses.charger_id || station?.id || null,
       chargerName: resolvedName,
       chargerCode: resolvedCode,
       billingType: chg.billing_type || ses.billingType || 'metered',
@@ -2165,7 +2167,12 @@ async function stopActiveChargingSession() {
   try {
     const res = await apiFetch(`/sessions/${s.id}/stop`, {
       method: 'POST',
-      body: { energyKwh: Number(Math.max(0.4, s.energyKwh).toFixed(2)), elapsedSeconds: s.elapsedSeconds }
+      body: {
+        energyKwh: Number(Math.max(0.4, s.energyKwh).toFixed(2)),
+        elapsedSeconds: s.elapsedSeconds,
+        bookingId: s.bookingId || null,
+        chargerId: s.chargerId || s.chargerCode || null
+      }
     });
 
     state.activeSession = null;
