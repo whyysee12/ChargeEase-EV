@@ -2,7 +2,8 @@
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0A0A0B">
   <title>ChargeEase EV — Peer-to-Peer EV Charging Network</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2310B981'><path d='M13 2L3 14h9l-1 8 10-12h-9l1-8z'/></svg>">
   <link rel="stylesheet" href="leaflet.css" />
@@ -303,6 +304,10 @@
 
       <!-- Right Interactive Auth Card Column -->
       <main class="auth-stage-main">
+        <div class="auth-mobile-topbar">
+          <button type="button" class="auth-back-btn" onclick="showLandingPage()">&larr; Home</button>
+          <div class="lp-brand-title" style="color:var(--text-primary);">ChargeEase <span class="ev-pill">EV</span></div>
+        </div>
         <div class="auth-form-shell">
           <div style="margin-bottom:18px;">
             <div style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); margin-bottom:8px;">1. Select your role</div>
@@ -488,7 +493,7 @@
   <!-- ==================== HEADER ==================== -->
   <header class="bolt-header">
     <div style="display:flex; align-items:center; gap:14px;">
-      <button type="button" class="demo-action-btn" onclick="showLandingPage()" style="height:38px; padding:0 14px;">&larr; Home</button>
+      <button type="button" class="demo-action-btn header-home-btn" onclick="showLandingPage()" style="height:38px; padding:0 14px;">&larr; Home</button>
       <div class="brand-badge" onclick="navigateToRoleHome()">
         <div class="logo-bolt-icon">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -545,25 +550,61 @@
   </div>
 
   <!-- ==================== NAVIGATION TABS ==================== -->
-  <nav class="app-tabs-bar" id="app-tabs-bar">
-    <!-- Driver Navigation (Focused 4 Core Tabs) -->
-    <div class="nav-tab-item" data-tab="driver-dash" data-role="driver" data-secondary="true" style="display:none;" onclick="switchTab('driver-dash')">Dashboard</div>
-    <div class="nav-tab-item active" data-tab="explore" data-role="driver" onclick="switchTab('explore')">Find Chargers</div>
-    <div class="nav-tab-item" data-tab="range-matcher" data-role="driver" onclick="switchTab('range-matcher')">Range Matcher</div>
-    <div class="nav-tab-item" data-tab="telemetry" data-role="driver" id="telemetry-tab-pill" onclick="switchTab('telemetry')">
-      Live Session
-      <span class="status-dot green" id="live-session-dot" style="display:none;"></span>
+  <nav class="app-tabs-bar" id="app-tabs-bar" aria-label="Primary application navigation">
+    <!-- Driver Navigation (4 Core Tabs Desktop / 5 Bottom Nav Tabs Mobile) -->
+    <div class="nav-tab-item" data-tab="driver-dash" data-role="driver" data-secondary="true" style="display:none;" onclick="switchTab('driver-dash')">
+      <svg class="nav-tab-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      <span class="nav-tab-label"><span class="nav-label-desktop">Dashboard</span><span class="nav-label-mobile">Home</span></span>
     </div>
-    <div class="nav-tab-item" data-tab="driver-bookings" data-role="driver" onclick="switchTab('driver-bookings')">My Bookings</div>
-    <div class="nav-tab-item" data-tab="wallet" data-role="driver" data-secondary="true" style="display:none;" onclick="switchTab('wallet')">Wallet</div>
-    <div class="nav-tab-item" data-tab="garage" data-role="driver" data-secondary="true" style="display:none;" onclick="switchTab('garage')">Garage &amp; profile</div>
+    <div class="nav-tab-item active" data-tab="explore" data-role="driver" onclick="switchTab('explore')">
+      <svg class="nav-tab-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M12 21s-6-5.33-6-10a6 6 0 1 1 12 0c0 4.67-6 10-6 10z"/><circle cx="12" cy="11" r="2.2"/></svg>
+      <span class="nav-tab-label"><span class="nav-label-desktop">Find Chargers</span><span class="nav-label-mobile">Explore</span></span>
+    </div>
+    <div class="nav-tab-item" data-tab="range-matcher" data-role="driver" onclick="switchTab('range-matcher')">
+      <svg class="nav-tab-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M12 3a9 9 0 0 0-9 9v3a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3v-3a9 9 0 0 0-9-9z"/><path d="M12 12l4-4"/></svg>
+      <span class="nav-tab-label"><span class="nav-label-desktop">Range Matcher</span><span class="nav-label-mobile">Range</span></span>
+    </div>
+    <div class="nav-tab-item" data-tab="telemetry" data-role="driver" id="telemetry-tab-pill" onclick="switchTab('telemetry')">
+      <span class="nav-tab-icon-wrap">
+        <svg class="nav-tab-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></svg>
+        <span class="status-dot green nav-live-dot" id="live-session-dot" style="display:none;"></span>
+      </span>
+      <span class="nav-tab-label"><span class="nav-label-desktop">Live Session</span><span class="nav-label-mobile">Charge</span></span>
+    </div>
+    <div class="nav-tab-item" data-tab="driver-bookings" data-role="driver" onclick="switchTab('driver-bookings')">
+      <svg class="nav-tab-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <span class="nav-tab-label"><span class="nav-label-desktop">My Bookings</span><span class="nav-label-mobile">Bookings</span></span>
+    </div>
+    <div class="nav-tab-item" data-tab="wallet" data-role="driver" data-secondary="true" style="display:none;" onclick="switchTab('wallet')">
+      <svg class="nav-tab-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M16 13h4"/></svg>
+      <span class="nav-tab-label"><span class="nav-label-desktop">Wallet</span><span class="nav-label-mobile">Wallet</span></span>
+    </div>
+    <div class="nav-tab-item" data-tab="garage" data-role="driver" data-secondary="true" data-mobile-nav="true" style="display:none;" onclick="switchTab('garage')">
+      <svg class="nav-tab-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span class="nav-tab-label"><span class="nav-label-desktop">Garage &amp; profile</span><span class="nav-label-mobile">Account</span></span>
+    </div>
 
-    <!-- Host Navigation (Focused 2 Core Tabs) -->
-    <div class="nav-tab-item" data-tab="host-dash" data-role="host" onclick="switchTab('host-dash')">Host Console</div>
-    <div class="nav-tab-item" data-tab="host-chargers" data-role="host" data-secondary="true" style="display:none;" onclick="switchTab('host-chargers')">Chargers</div>
-    <div class="nav-tab-item" data-tab="host-bookings" data-role="host" data-secondary="true" style="display:none;" onclick="switchTab('host-bookings')">Booking requests</div>
-    <div class="nav-tab-item" data-tab="host-earnings" data-role="host" onclick="switchTab('host-earnings')">Earnings &amp; Payouts</div>
-    <div class="nav-tab-item" data-tab="host-profile" data-role="host" data-secondary="true" style="display:none;" onclick="switchTab('host-profile')">Host profile</div>
+    <!-- Host Navigation (2 Core Tabs Desktop / 5 Bottom Nav Tabs Mobile) -->
+    <div class="nav-tab-item" data-tab="host-dash" data-role="host" onclick="switchTab('host-dash')">
+      <svg class="nav-tab-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      <span class="nav-tab-label"><span class="nav-label-desktop">Host Console</span><span class="nav-label-mobile">Console</span></span>
+    </div>
+    <div class="nav-tab-item" data-tab="host-chargers" data-role="host" data-secondary="true" data-mobile-nav="true" style="display:none;" onclick="switchTab('host-chargers')">
+      <svg class="nav-tab-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></svg>
+      <span class="nav-tab-label"><span class="nav-label-desktop">Chargers</span><span class="nav-label-mobile">Docks</span></span>
+    </div>
+    <div class="nav-tab-item" data-tab="host-bookings" data-role="host" data-secondary="true" data-mobile-nav="true" style="display:none;" onclick="switchTab('host-bookings')">
+      <svg class="nav-tab-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <span class="nav-tab-label"><span class="nav-label-desktop">Booking requests</span><span class="nav-label-mobile">Requests</span></span>
+    </div>
+    <div class="nav-tab-item" data-tab="host-earnings" data-role="host" onclick="switchTab('host-earnings')">
+      <svg class="nav-tab-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      <span class="nav-tab-label"><span class="nav-label-desktop">Earnings &amp; Payouts</span><span class="nav-label-mobile">Earnings</span></span>
+    </div>
+    <div class="nav-tab-item" data-tab="host-profile" data-role="host" data-secondary="true" data-mobile-nav="true" style="display:none;" onclick="switchTab('host-profile')">
+      <svg class="nav-tab-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span class="nav-tab-label"><span class="nav-label-desktop">Host profile</span><span class="nav-label-mobile">Profile</span></span>
+    </div>
   </nav>
 
   <!-- ==================== MAIN VIEW CONTAINER ==================== -->
@@ -658,7 +699,13 @@
     </div>
 
     <!-- D2: MAP-CENTRIC CHARGER DISCOVERY -->
-    <div id="view-explore" class="tab-view active">
+    <div id="view-explore" class="tab-view active" data-explore-mode="split">
+      <div class="mobile-explore-switcher" id="mobile-explore-switcher">
+        <button type="button" class="mobile-exp-btn active" data-exp-mode="split" onclick="setMobileExploreMode('split')">Split</button>
+        <button type="button" class="mobile-exp-btn" data-exp-mode="map" onclick="setMobileExploreMode('map')">Map</button>
+        <button type="button" class="mobile-exp-btn" data-exp-mode="list" onclick="setMobileExploreMode('list')">List</button>
+        <button type="button" class="mobile-exp-btn mobile-filter-toggle" id="mobile-filter-toggle-btn" onclick="toggleMobileFilters()">Filters</button>
+      </div>
       <div class="discovery-grid">
         <!-- Sidebar with Filters, Sorting & List -->
         <div class="station-sidebar">
@@ -676,7 +723,7 @@
           </div>
 
           <!-- Multi-Attribute Filter & Sort Toolbar -->
-          <div class="filter-toolbar" style="display:none;">
+          <div class="filter-toolbar" id="explore-filter-toolbar">
             <select id="filter-connector" class="filter-select" onchange="loadStationsFromApi()" title="Filter by connector" aria-label="Filter chargers by connector type">
               <option value="all">Connector: All</option>
               <option value="Type 2">Type 2 AC</option>
@@ -751,7 +798,7 @@
 
         <!-- Primary Controls: Vehicle & Battery Slider -->
         <div class="range-slider-wrap" style="margin-top:0; padding:22px 24px;">
-          <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap:28px; align-items:center;">
+          <div class="range-controls-grid" style="display:grid; grid-template-columns: 1fr 1.5fr; gap:28px; align-items:center;">
             <div>
               <label for="range-ev-selector" class="field-label" style="font-size:13px; margin-bottom:8px;">Select Your EV</label>
               <select id="range-ev-selector" class="custom-select" style="width:100%; height:48px; font-size:15px; font-weight:600;" onchange="updateRangeCalc()" aria-label="Select EV model for reachability calculation"></select>
@@ -784,7 +831,7 @@
         </div>
 
         <!-- 3 Big Hero Metrics -->
-        <div class="summary-strip" style="margin-top:20px; grid-template-columns: repeat(3, 1fr);">
+        <div class="summary-strip range-metrics-strip" style="margin-top:20px; grid-template-columns: repeat(3, 1fr);">
           <div class="summary-item" style="padding:24px 28px;">
             <div class="summary-label" style="font-size:13px;">Gross Remaining Range</div>
             <div class="summary-value" style="color:var(--accent-blue); font-size:40px; margin-top:6px;" id="calc-gross-range">48.3 km</div>
@@ -795,7 +842,7 @@
             <div class="summary-value" style="color:var(--accent-amber); font-size:40px; margin-top:6px;" id="calc-safety-buffer">9.7 km</div>
             <div class="summary-meta" style="font-size:13px;">Kept aside for detours</div>
           </div>
-          <div class="summary-item" style="padding:24px 28px;">
+          <div class="summary-item range-usable-hero" style="padding:24px 28px;">
             <div class="summary-label" style="font-size:13px;">Usable Safe Reach</div>
             <div class="summary-value" style="color:var(--accent-green); font-size:44px; margin-top:6px;" id="calc-usable-range">38.6 km</div>
             <div class="summary-meta" style="font-size:13px;">Max safe charger distance</div>
@@ -805,12 +852,12 @@
         <!-- Reachable & Excluded Chargers Breakdown -->
         <div style="margin-top:28px;">
           <h3 class="panel-title" style="margin-bottom:14px; font-size:20px;">Reachable Chargers Near You</h3>
-          <div id="range-recommendations-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap:18px;"></div>
+          <div id="range-recommendations-grid" class="range-cards-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap:18px;"></div>
         </div>
 
         <div id="range-excluded-section" style="margin-top:24px; display:none;">
           <h3 class="panel-title" style="margin-bottom:12px; color:var(--text-secondary);">Out of Safe Range</h3>
-          <div id="range-excluded-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap:16px;"></div>
+          <div id="range-excluded-grid" class="range-cards-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap:16px;"></div>
         </div>
 
         <!-- Public Highway Fallback Guidance -->
@@ -929,7 +976,7 @@
 
     <!-- D6: WALLET & PAYMENTS -->
     <div id="view-wallet" class="tab-view" style="display:none;">
-      <div style="max-width: 920px; margin: 0 auto; display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+      <div class="wallet-grid" style="max-width: 920px; margin: 0 auto; display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
         <div class="panel-card">
           <div style="font-size:12px; color:var(--text-muted); font-weight:500;">ChargeEase Wallet Balance</div>
           <div class="tabular" style="font-size:34px; font-weight:700; margin:8px 0 12px;">
@@ -965,7 +1012,7 @@
     <!-- D7: GARAGE & DRIVER PROFILE -->
     <div id="view-garage" class="tab-view" style="display:none;">
       <div style="max-width: 1020px; margin: 0 auto;">
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-bottom:20px;">
+        <div class="garage-top-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-bottom:20px;">
           <!-- Personal Details -->
           <div class="panel-card">
             <h3 class="panel-title" style="margin-bottom:12px;">Driver profile</h3>
@@ -1008,7 +1055,7 @@
                     <input type="text" id="veh-model" class="custom-input" placeholder="e.g. Nexon EV" required aria-label="New vehicle model">
                   </div>
                 </div>
-                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-bottom:12px;">
+                <div class="garage-spec-grid-3" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-bottom:12px;">
                   <div>
                     <label for="veh-kwh" class="field-label">Battery (kWh)</label>
                     <input type="number" id="veh-kwh" class="custom-input" step="0.1" value="30.2" required aria-label="New vehicle battery capacity in kWh">
@@ -1033,7 +1080,7 @@
             <div class="panel-card">
               <h3 class="panel-title" style="margin-bottom:12px;">Change password</h3>
               <form onsubmit="handleChangePassword(event)">
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:12px;">
+                <div class="garage-pwd-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:12px;">
                   <input type="password" id="pwd-current" class="custom-input" placeholder="Current password" required aria-label="Current password">
                   <input type="password" id="pwd-new" class="custom-input" placeholder="New password" required aria-label="New password">
                 </div>
@@ -1579,6 +1626,7 @@
 
   <div id="toast-container"></div>
 
+  <script src="app-config.js"></script>
   <script src="leaflet.js"></script>
   <script src="app.js"></script>
 </body>

@@ -3,7 +3,11 @@
    EV Mobility Graphite Architecture - Zero Emojis - Strict Privacy & Transparency
    ========================================================================== */
 
-const API_BASE = '/api';
+const CHARGEEASE_API_ORIGIN = String(window.CHARGEEASE_CONFIG?.apiBaseUrl || '').trim().replace(/\/+$/, '');
+const CHARGEEASE_IS_NATIVE = window.Capacitor?.isNativePlatform?.() === true;
+const API_BASE = CHARGEEASE_API_ORIGIN
+  ? (CHARGEEASE_API_ORIGIN.endsWith('/api') ? CHARGEEASE_API_ORIGIN : `${CHARGEEASE_API_ORIGIN}/api`)
+  : (CHARGEEASE_IS_NATIVE ? 'https://charge-ease-ev-five.vercel.app/api' : '/api');
 
 // Catalog of common Indian EVs used alongside driver's own garage vehicles
 const EV_CATALOG = [
@@ -880,11 +884,36 @@ function switchRoleExperience(role, fromHydration = false) {
   document.querySelectorAll('#app-tabs-bar .nav-tab-item').forEach(tabEl => {
     const tabRole = tabEl.dataset.role;
     const isSecondary = tabEl.dataset.secondary === 'true';
-    tabEl.style.display = (tabRole === targetRole && !isSecondary) ? 'flex' : 'none';
+    const hasMobileNav = tabEl.dataset.mobileNav === 'true';
+    tabEl.style.display = (tabRole === targetRole && (!isSecondary || hasMobileNav)) ? 'flex' : 'none';
   });
 
   const defaultTab = targetRole === 'host' ? 'host-dash' : 'explore';
   switchTab(defaultTab);
+}
+
+function setMobileExploreMode(mode = 'split') {
+  const validMode = ['split', 'map', 'list'].includes(mode) ? mode : 'split';
+  const view = getEl('view-explore');
+  if (view) view.setAttribute('data-explore-mode', validMode);
+
+  document.querySelectorAll('#mobile-explore-switcher .mobile-exp-btn[data-exp-mode]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.expMode === validMode);
+  });
+
+  if (validMode !== 'list') {
+    setTimeout(() => {
+      if (state.map) state.map.invalidateSize({ animate: false });
+    }, 60);
+  }
+}
+
+function toggleMobileFilters() {
+  const toolbar = getEl('explore-filter-toolbar');
+  const btn = getEl('mobile-filter-toggle-btn');
+  if (!toolbar) return;
+  const open = toolbar.classList.toggle('mobile-filters-open');
+  if (btn) btn.classList.toggle('active', open);
 }
 
 function switchTab(tabId) {
@@ -899,6 +928,10 @@ function switchTab(tabId) {
     view.style.display = isTarget ? 'block' : 'none';
     view.classList.toggle('active', isTarget);
   });
+
+  if (window.innerWidth <= 768) {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
   if (tabId === 'driver-dash') {
     loadDriverDashboard();
@@ -1827,7 +1860,8 @@ function openBookingModal(chargerId) {
   const todayStr = now.toISOString().slice(0, 10);
   const nextHour = String((now.getHours() + 1) % 24).padStart(2, '0') + ':00';
 
-  if (getEl('bm-charger-name')) getEl('bm-charger-name').textContent = `${station.name} (${station.connectorType} | ${station.powerKw} kW)`;
+  const bmNameEl = getEl('bm-charger-name');
+  if (bmNameEl) bmNameEl.value = `${station.name} (${station.connectorType} | ${station.powerKw} kW)`;
   if (getEl('bm-date')) getEl('bm-date').value = todayStr;
   if (getEl('bm-time')) getEl('bm-time').value = nextHour;
   if (getEl('bm-duration')) getEl('bm-duration').value = '60';
