@@ -1,0 +1,22 @@
+{
+  "name": "chargeease-ev",
+  "version": "1.0.0",
+  "description": "ChargeEase EV - Reachability-First Peer-to-Peer EV Charging Platform",
+  "main": "server.js",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "chargeease-ev",
+    "ev-charging",
+    "p2p-charging",
+    "clean-tech",
+    "electric-vehicle"
+  ],
+  "author": "ChargeEase EV",
+  "license": "MIT"
+}

@@ -1,0 +1,6 @@
+node_modules/
+.env
+chargeease.db
+chargeease.db-shm
+chargeease.db-wal
+.vercel/
