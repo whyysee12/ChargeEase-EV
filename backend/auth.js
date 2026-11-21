@@ -72,34 +72,33 @@ function verifyToken(token) {
   }
 }
 
-// Authenticate request and attach user record
-function authenticateUser(req) {
-  const authHeader = req.headers['authorization'] || req.headers['x-auth-token'];
-  if (!authHeader) return null;
+function rehydrateUserFromToken(tokenOrDecoded) {
+  const decoded = typeof tokenOrDecoded === 'string' ? verifyToken(tokenOrDecoded) : tokenOrDecoded;
+  if (!decoded || !decoded.userId || !decoded.email || !decoded.role) return null;
 
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
-  const decoded = verifyToken(token);
-  if (!decoded) return null;
-
+  const cleanEmail = String(decoded.email).toLowerCase().trim();
   let user = db.prepare('SELECT id, email, role, name, phone, wallet_balance, is_verified, is_suspended FROM users WHERE id = ?').get(decoded.userId);
-  if (!user && decoded.email) {
-    user = db.prepare('SELECT id, email, role, name, phone, wallet_balance, is_verified, is_suspended FROM users WHERE email = ?').get(String(decoded.email).toLowerCase().trim());
+  if (!user) {
+    user = db.prepare('SELECT id, email, role, name, phone, wallet_balance, is_verified, is_suspended FROM users WHERE email = ?').get(cleanEmail);
   }
 
-  // Auto-rehydrate valid JWT users in fresh serverless instances (e.g. Vercel /tmp cold start)
-  if (!user && decoded.userId && decoded.email && decoded.role) {
+  if (!user) {
     try {
       const safeRole = ['driver', 'host', 'admin'].includes(decoded.role) ? decoded.role : 'driver';
       const defaultBal = typeof decoded.wallet_balance === 'number'
         ? decoded.wallet_balance
         : (safeRole === 'driver' ? 500.00 : 0.00);
+      const storedPassHash = (typeof decoded.password_hash === 'string' && decoded.password_hash.includes(':'))
+        ? decoded.password_hash
+        : hashPassword('rehydrated-' + decoded.userId);
+
       db.prepare(`
         INSERT OR IGNORE INTO users (id, email, password_hash, role, name, phone, wallet_balance, is_verified, is_suspended)
         VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0)
       `).run(
         decoded.userId,
-        String(decoded.email).toLowerCase().trim(),
-        hashPassword('rehydrated-' + decoded.userId),
+        cleanEmail,
+        storedPassHash,
         safeRole,
         decoded.name || 'ChargeEase User',
         decoded.phone || '+91 98000 00000',
@@ -142,12 +141,25 @@ function authenticateUser(req) {
         );
       }
 
-      user = db.prepare('SELECT id, email, role, name, phone, wallet_balance, is_verified, is_suspended FROM users WHERE id = ?').get(decoded.userId);
+      user = db.prepare('SELECT id, email, role, name, phone, wallet_balance, is_verified, is_suspended FROM users WHERE id = ? OR email = ?').get(decoded.userId, cleanEmail);
     } catch (_) {
       // Non-fatal fallback
     }
   }
 
+  return user || null;
+}
+
+// Authenticate request and attach user record
+function authenticateUser(req) {
+  const authHeader = req.headers['authorization'] || req.headers['x-auth-token'];
+  if (!authHeader) return null;
+
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+  const decoded = verifyToken(token);
+  if (!decoded) return null;
+
+  const user = rehydrateUserFromToken(decoded);
   if (!user || user.is_suspended) return null;
 
   return user;
@@ -165,6 +177,7 @@ function checkRole(user, allowedRoles) {
 module.exports = {
   signToken,
   verifyToken,
+  rehydrateUserFromToken,
   authenticateUser,
   checkRole,
   hashPassword,

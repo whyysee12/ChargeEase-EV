@@ -376,6 +376,27 @@ async function verifyAndEnterWithToken(token, expectedRoleLabel) {
   }, 450);
 }
 
+function saveAccountVaultToken(email, token) {
+  if (!email || !token) return;
+  try {
+    const raw = localStorage.getItem('ce_account_vault');
+    const vault = raw ? JSON.parse(raw) : {};
+    vault[String(email).toLowerCase().trim()] = token;
+    localStorage.setItem('ce_account_vault', JSON.stringify(vault));
+  } catch (_) {}
+}
+
+function getAccountVaultToken(email) {
+  if (!email) return null;
+  try {
+    const raw = localStorage.getItem('ce_account_vault');
+    const vault = raw ? JSON.parse(raw) : {};
+    return vault[String(email).toLowerCase().trim()] || null;
+  } catch (_) {
+    return null;
+  }
+}
+
 async function handleAuthPageDriverSignup(e) {
   e.preventDefault();
   setAuthPageStatus('Registering EV Driver & verifying credentials with backend...', 'info');
@@ -393,6 +414,7 @@ async function handleAuthPageDriverSignup(e) {
 
   try {
     const res = await apiFetch('/auth/register-driver', { method: 'POST', body: payload });
+    saveAccountVaultToken(res.user?.email || payload.email, res.token);
     await verifyAndEnterWithToken(res.token, 'EV Driver');
     showToast('EV Driver registered & backend verified', 'success');
   } catch (err) {
@@ -417,6 +439,7 @@ async function handleAuthPageHostSignup(e) {
 
   try {
     const res = await apiFetch('/auth/register-host', { method: 'POST', body: payload });
+    saveAccountVaultToken(res.user?.email || payload.email, res.token);
     await verifyAndEnterWithToken(res.token, 'Charger Host');
     showToast('Charger Host registered & backend verified', 'success');
   } catch (err) {
@@ -435,8 +458,9 @@ async function handleAuthPageLogin(e) {
   try {
     const res = await apiFetch('/auth/login', {
       method: 'POST',
-      body: { email, password, expectedRole }
+      body: { email, password, expectedRole, vaultToken: getAccountVaultToken(email) }
     });
+    saveAccountVaultToken(res.user?.email || email, res.token);
     await verifyAndEnterWithToken(res.token, formatStatusLabel(res.user.role));
     showToast(`Authenticated as ${res.user.name} (${formatStatusLabel(res.user.role)})`, 'success');
   } catch (err) {
@@ -754,8 +778,9 @@ async function handleFormLogin(e) {
   try {
     const res = await apiFetch('/auth/login', {
       method: 'POST',
-      body: { email, password }
+      body: { email, password, vaultToken: getAccountVaultToken(email) }
     });
+    saveAccountVaultToken(res.user?.email || email, res.token);
     localStorage.setItem('ce_token', res.token);
     localStorage.removeItem('ce_logged_out');
     state.authToken = res.token;
@@ -783,6 +808,7 @@ async function handleFormRegisterDriver(e) {
 
   try {
     const res = await apiFetch('/auth/register-driver', { method: 'POST', body: payload });
+    saveAccountVaultToken(res.user?.email || payload.email, res.token);
     localStorage.setItem('ce_token', res.token);
     localStorage.removeItem('ce_logged_out');
     state.authToken = res.token;
@@ -810,6 +836,7 @@ async function handleFormRegisterHost(e) {
 
   try {
     const res = await apiFetch('/auth/register-host', { method: 'POST', body: payload });
+    saveAccountVaultToken(res.user?.email || payload.email, res.token);
     localStorage.setItem('ce_token', res.token);
     localStorage.removeItem('ce_logged_out');
     state.authToken = res.token;
@@ -2361,13 +2388,18 @@ async function deleteVehicle(id) {
 async function handleChangePassword(e) {
   e.preventDefault();
   try {
-    await apiFetch('/auth/change-password', {
+    const res = await apiFetch('/auth/change-password', {
       method: 'PUT',
       body: {
         currentPassword: getEl('pwd-current')?.value,
         newPassword: getEl('pwd-new')?.value
       }
     });
+    if (res.token && state.currentUser?.email) {
+      localStorage.setItem('ce_token', res.token);
+      state.authToken = res.token;
+      saveAccountVaultToken(state.currentUser.email, res.token);
+    }
     e.target.reset();
     showToast('Password updated', 'success');
   } catch (err) {

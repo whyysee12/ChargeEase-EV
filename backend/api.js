@@ -3,7 +3,7 @@
 // =========================================================
 
 const { db, hashPassword, verifyPassword, syncNearbyChargersForLocation } = require('./db');
-const { signToken, authenticateUser, checkRole } = require('./auth');
+const { signToken, rehydrateUserFromToken, authenticateUser, checkRole } = require('./auth');
 
 // Utility: parse JSON body from request stream (supports pre-parsed req.body on Vercel)
 function parseBody(req) {
@@ -141,6 +141,7 @@ async function handleApiRequest(req, res, pathname, queryParams) {
           name: name.trim(),
           phone: phone || '+91 98000 00000',
           wallet_balance: 500.00,
+          password_hash: passHash,
           vehicle: {
             id: vehId,
             manufacturer: manufacturer || 'Ola Electric',
@@ -220,6 +221,7 @@ async function handleApiRequest(req, res, pathname, queryParams) {
           name: name.trim(),
           phone: phone || '+91 98000 00000',
           wallet_balance: 0.00,
+          password_hash: passHash,
           hostProfile: {
             address: address.trim(),
             city: city.trim(),
@@ -250,7 +252,12 @@ async function handleApiRequest(req, res, pathname, queryParams) {
         return sendJson(res, 400, { error: 'Email and password are required' });
       }
 
-      const userRow = db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase().trim());
+      const cleanEmail = email.toLowerCase().trim();
+      let userRow = db.prepare('SELECT * FROM users WHERE email = ?').get(cleanEmail);
+      if (!userRow && body.vaultToken) {
+        rehydrateUserFromToken(body.vaultToken);
+        userRow = db.prepare('SELECT * FROM users WHERE email = ?').get(cleanEmail);
+      }
       if (!userRow) {
         return sendJson(res, 401, { error: 'Invalid email or password' });
       }
@@ -276,7 +283,8 @@ async function handleApiRequest(req, res, pathname, queryParams) {
         role: userRow.role,
         name: userRow.name,
         phone: userRow.phone,
-        wallet_balance: userRow.wallet_balance
+        wallet_balance: userRow.wallet_balance,
+        password_hash: userRow.password_hash
       });
 
       return sendJson(res, 200, {
@@ -375,7 +383,17 @@ async function handleApiRequest(req, res, pathname, queryParams) {
       const newHash = hashPassword(newPassword);
       db.prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?").run(newHash, user.id);
 
-      return sendJson(res, 200, { success: true, message: 'Password updated successfully' });
+      const refreshedToken = signToken({
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        name: user.name,
+        phone: user.phone,
+        wallet_balance: user.wallet_balance,
+        password_hash: newHash
+      });
+
+      return sendJson(res, 200, { success: true, message: 'Password updated successfully', token: refreshedToken });
     }
 
     // =========================================================
