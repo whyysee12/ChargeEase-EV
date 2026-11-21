@@ -1365,7 +1365,9 @@ async function handleApiRequest(req, res, pathname, queryParams) {
           session: {
             id: sessionId,
             sessionCode,
+            session_code: sessionCode,
             chargerId: charger.id,
+            chargerCode: charger.code,
             chargerName: charger.name,
             powerKw: charger.power_kw,
             billingType: charger.billing_type,
@@ -1373,6 +1375,16 @@ async function handleApiRequest(req, res, pathname, queryParams) {
             timeRatePerHour: charger.time_rate_per_hour,
             isSimulated: true,
             status: 'active'
+          },
+          charger: {
+            id: charger.id,
+            code: charger.code,
+            name: charger.name,
+            connector_type: charger.connector_type,
+            billing_type: charger.billing_type,
+            power_kw: charger.power_kw,
+            price_per_kwh: charger.price_per_kwh,
+            time_rate_per_hour: charger.time_rate_per_hour
           }
         });
       } catch (err) {

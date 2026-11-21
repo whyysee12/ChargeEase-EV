@@ -1600,35 +1600,37 @@ async function updateRangeCalc() {
     const fallbackEl = getEl('range-public-fallback');
 
     if (recGrid) {
-      recGrid.innerHTML = reachable.map(ch => `
-        <div class="panel-card" style="padding:14px;">
-          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:6px;">
-            <div>
-              <div style="font-size:14px; font-weight:600; color:var(--text-primary);">${escapeHtml(ch.name)}</div>
-              <div style="font-size:11px; color:var(--text-secondary);">${escapeHtml(ch.approximateAddress || ch.address)}</div>
-            </div>
+      recGrid.innerHTML = reachable.map(ch => {
+        const roadKm = Number(ch.estimatedRoadDistanceKm ?? ch.distanceKm ?? 0);
+        const rawMargin = ch.marginKm ?? ch.safetyMarginRemainingKm;
+        const marginKm = Number.isFinite(Number(rawMargin)) ? Number(rawMargin) : Math.max(0, usable - roadKm);
+        const priceDisplay = ch.billingType === 'time' ? formatInr(ch.timeRatePerHour, 0) + ' / hr' : formatInr(ch.pricePerKwh, 0) + ' / kWh';
+
+        return `
+        <div class="panel-card" style="padding:22px;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:6px;">
+            <div style="font-size:18px; font-weight:700; color:var(--text-primary); line-height:1.25;">${escapeHtml(ch.name)}</div>
             <span class="status-badge status-available"><span class="status-dot green"></span>Reachable</span>
           </div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:10px 0; font-size:12px;">
-            <div style="padding:8px; background:var(--bg-surface); border-radius:var(--radius-sm);">
-              <span style="color:var(--text-muted); display:block; font-size:10px;">Estimated road distance</span>
-              <strong class="tabular">${Number(ch.estimatedRoadDistanceKm).toFixed(1)} km</strong>
+          <div style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">${escapeHtml(ch.approximateAddress || ch.address)}</div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
+            <div style="padding:12px 14px; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:var(--radius-sm);">
+              <span style="color:var(--text-muted); display:block; font-size:11px; margin-bottom:3px;">Distance</span>
+              <strong class="tabular" style="font-size:18px; color:var(--text-primary);">${roadKm.toFixed(1)} km</strong>
             </div>
-            <div style="padding:8px; background:var(--bg-surface); border-radius:var(--radius-sm);">
-              <span style="color:var(--text-muted); display:block; font-size:10px;">Reserve buffer on arrival</span>
-              <strong class="tabular" style="color:var(--accent-green);">+${Number(ch.safetyMarginRemainingKm).toFixed(1)} km</strong>
+            <div style="padding:12px 14px; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:var(--radius-sm);">
+              <span style="color:var(--text-muted); display:block; font-size:11px; margin-bottom:3px;">Safe Buffer Left</span>
+              <strong class="tabular" style="font-size:18px; color:var(--accent-green);">+${marginKm.toFixed(1)} km</strong>
             </div>
           </div>
-          <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--text-secondary); margin-bottom:10px;">
-            <span>${escapeHtml(ch.connectorType)} | ${ch.powerKw} kW</span>
-            <strong class="tabular" style="color:var(--text-primary);">${ch.billingType === 'time' ? formatInr(ch.timeRatePerHour, 0) + '/hr' : formatInr(ch.pricePerKwh, 0) + '/kWh'}</strong>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+            <span style="font-size:14px; color:var(--text-secondary);">${escapeHtml(ch.connectorType)} &bull; ${ch.powerKw} kW</span>
+            <strong class="tabular" style="font-size:20px; color:var(--text-primary);">${priceDisplay}</strong>
           </div>
-          <div style="display:flex; gap:8px;">
-            <button class="btn-secondary btn-sm" style="flex:1;" onclick="openStationDetailModal('${escapeHtml(ch.id)}')">Inspect slots</button>
-            <button class="btn-bolt btn-sm" style="flex:1;" onclick="openBookingModal('${escapeHtml(ch.id)}')">Reserve dock</button>
-          </div>
+          <button class="btn-bolt" style="width:100%; height:42px; font-size:14px;" onclick="openBookingModal('${escapeHtml(ch.id)}')">Book Charging Slot</button>
         </div>
-      `).join('');
+      `;
+      }).join('');
     }
 
     if (fallbackEl) fallbackEl.style.display = reachable.length === 0 ? 'block' : 'none';
@@ -1894,17 +1896,19 @@ async function startLiveChargingSession(station = null, bookingId = null) {
       body: { chargerCode: station?.code || null, bookingId }
     });
 
-    const ses = res.session;
-    const chg = res.charger;
+    const ses = res.session || {};
+    const chg = res.charger || {};
+    const resolvedCode = chg.code || ses.chargerCode || station?.code || 'CE-DEL-100';
+    const resolvedName = chg.name || ses.chargerName || station?.name || 'ChargeEase Dock';
     state.activeSession = {
       id: ses.id,
-      sessionCode: ses.session_code,
-      chargerName: chg.name,
-      chargerCode: chg.code,
-      billingType: chg.billing_type,
-      powerKw: Number(chg.power_kw || 7.4),
-      pricePerKwh: Number(chg.price_per_kwh || 18),
-      timeRatePerHour: Number(chg.time_rate_per_hour || 75),
+      sessionCode: ses.session_code || ses.sessionCode || 'SES-LIVE',
+      chargerName: resolvedName,
+      chargerCode: resolvedCode,
+      billingType: chg.billing_type || ses.billingType || 'metered',
+      powerKw: Number(chg.power_kw ?? ses.powerKw ?? 7.4),
+      pricePerKwh: Number(chg.price_per_kwh ?? ses.pricePerKwh ?? 18),
+      timeRatePerHour: Number(chg.time_rate_per_hour ?? ses.timeRatePerHour ?? 60),
       startSoc: Math.min(88, state.batterySoc),
       currentSoc: Math.min(88, state.batterySoc),
       energyKwh: 0.0,
@@ -1919,7 +1923,7 @@ async function startLiveChargingSession(station = null, bookingId = null) {
     switchTab('telemetry');
     renderTelemetryPanelState();
     startTelemetryLoop();
-    showToast(`Telemetry active on ${chg.code} (simulated demo stream)`, 'success');
+    showToast(`Telemetry active on ${resolvedCode} (simulated demo stream)`, 'success');
   } catch (err) {
     showToast(err.message, 'error');
   }

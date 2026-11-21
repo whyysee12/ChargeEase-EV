@@ -739,84 +739,82 @@
 
     <!-- D3: INTELLIGENT REACHABILITY MATCHER -->
     <div id="view-range-matcher" class="tab-view" style="display:none;">
-      <div class="range-calculator-panel">
-        <div class="panel-header" style="flex-wrap:wrap;">
+      <div class="range-calculator-panel" style="max-width:1180px; margin:0 auto;">
+        <div class="panel-header" style="flex-wrap:wrap; margin-bottom:18px;">
           <div>
-            <h2 style="font-size:20px; font-weight:700;">Intelligent Reachability Engine</h2>
-            <p class="panel-subtitle">Matches remaining battery range, safety reserve buffer, connector compatibility, and corridor distance before booking.</p>
+            <h2 style="font-size:26px; font-weight:700; letter-spacing:-0.02em;">Reachability Engine</h2>
+            <p class="panel-subtitle" style="font-size:14px;">Check how far your EV can safely travel with a 20% emergency battery reserve.</p>
           </div>
-          <span class="badge-tag">Usable range = Remaining range × (1 − buffer %)</span>
+          <span class="badge-tag" style="font-size:12px; padding:5px 10px;">Usable reach = Gross range &times; (1 &minus; 20% buffer)</span>
         </div>
 
-        <div class="summary-strip" style="margin-top:12px;">
-          <div class="summary-item">
-            <div class="summary-label">Vehicle model</div>
-            <select id="range-ev-selector" class="custom-select" style="width:100%; margin-top:6px;" onchange="updateRangeCalc()" aria-label="Select EV model for reachability calculation"></select>
-          </div>
-          <div class="summary-item">
-            <div class="summary-label">Gross remaining range</div>
-            <div class="summary-value" style="color:var(--accent-blue)" id="calc-gross-range">27.4 km</div>
-            <div class="summary-meta">Based on SoC &amp; pack efficiency</div>
-          </div>
-          <div class="summary-item">
-            <div class="summary-label">Safety reserve (<span id="calc-safety-buffer-label">20%</span>)</div>
-            <div class="summary-value" style="color:var(--accent-amber)" id="calc-safety-buffer">5.5 km</div>
-            <div class="summary-meta">Held for traffic &amp; detours</div>
-          </div>
-          <div class="summary-item">
-            <div class="summary-label">Usable safe reach</div>
-            <div class="summary-value" style="color:var(--accent-green)" id="calc-usable-range">21.9 km</div>
-            <div class="summary-meta">Maximum eligible dock distance</div>
-          </div>
-        </div>
-
-        <!-- Configurable Parameters -->
-        <div class="range-slider-wrap">
-          <div style="display:grid; grid-template-columns: 1.5fr 1fr 1fr; gap:16px; align-items:end;">
+        <!-- Primary Controls: Vehicle & Battery Slider -->
+        <div class="range-slider-wrap" style="margin-top:0; padding:22px 24px;">
+          <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap:28px; align-items:center;">
             <div>
-              <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:13px;">
-                <span style="font-weight:500;">Current Battery State of Charge (SoC)</span>
-                <span class="tabular" style="font-weight:600; color:var(--accent-green)" id="slider-soc-display">24%</span>
+              <label for="range-ev-selector" class="field-label" style="font-size:13px; margin-bottom:8px;">Select Your EV</label>
+              <select id="range-ev-selector" class="custom-select" style="width:100%; height:48px; font-size:15px; font-weight:600;" onchange="updateRangeCalc()" aria-label="Select EV model for reachability calculation"></select>
+            </div>
+            <div>
+              <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px;">
+                <label for="battery-soc-slider" style="font-size:14px; font-weight:600; color:var(--text-primary);">Current Battery Charge</label>
+                <span class="tabular" style="font-size:32px; font-weight:700; color:var(--accent-green); line-height:1;" id="slider-soc-display">24%</span>
               </div>
-              <input type="range" min="3" max="100" value="24" class="custom-range-slider" id="battery-soc-slider" oninput="onBatterySliderChange(this.value)" aria-label="Remaining battery state of charge percentage">
-            </div>
-            <div>
-              <label for="range-buffer-select" class="field-label">Safety buffer (%)</label>
-              <select id="range-buffer-select" class="custom-select" style="width:100%;" onchange="onSafetyBufferChange(this.value)" aria-label="Safety reserve buffer percentage">
-                <option value="10">10% (Minimal buffer)</option>
-                <option value="20" selected>20% (Standard reserve)</option>
-                <option value="30">30% (Conservative reserve)</option>
-              </select>
-            </div>
-            <div>
-              <label for="range-connector-select" class="field-label">Required connector</label>
-              <select id="range-connector-select" class="custom-select" style="width:100%;" onchange="updateRangeCalc()" aria-label="Filter compatible connector type">
-                <option value="all">Any compatible socket</option>
-                <option value="Type 2">Type 2 AC</option>
-                <option value="16A">16A 3-Pin</option>
-                <option value="CCS 2">CCS 2 DC</option>
-              </select>
+              <input type="range" min="3" max="100" value="24" class="custom-range-slider" style="height:10px;" id="battery-soc-slider" oninput="onBatterySliderChange(this.value)" aria-label="Remaining battery state of charge percentage">
             </div>
           </div>
-          <div style="font-size:12px; color:var(--text-muted); margin-top:10px;" id="range-disclaimer-text">
-            Corridor distance uses a 1.25x metropolitan detour multiplier over straight-line distance when live route telemetry is idle. Click any charger on the map for turn-by-turn road routing.
+
+          <div style="display:none;">
+            <label for="range-buffer-select" class="field-label">Safety buffer (%)</label>
+            <select id="range-buffer-select" class="custom-select" onchange="onSafetyBufferChange(this.value)" aria-label="Safety reserve buffer percentage">
+              <option value="10">10% (Minimal buffer)</option>
+              <option value="20" selected>20% (Standard reserve)</option>
+              <option value="30">30% (Conservative reserve)</option>
+            </select>
+            <label for="range-connector-select" class="field-label">Required connector</label>
+            <select id="range-connector-select" class="custom-select" onchange="updateRangeCalc()" aria-label="Filter compatible connector type">
+              <option value="all">Any compatible socket</option>
+              <option value="Type 2">Type 2 AC</option>
+              <option value="16A">16A 3-Pin</option>
+              <option value="CCS 2">CCS 2 DC</option>
+            </select>
+            <div id="range-disclaimer-text"></div>
+          </div>
+        </div>
+
+        <!-- 3 Big Hero Metrics -->
+        <div class="summary-strip" style="margin-top:20px; grid-template-columns: repeat(3, 1fr);">
+          <div class="summary-item" style="padding:24px 28px;">
+            <div class="summary-label" style="font-size:13px;">Gross Remaining Range</div>
+            <div class="summary-value" style="color:var(--accent-blue); font-size:40px; margin-top:6px;" id="calc-gross-range">48.3 km</div>
+            <div class="summary-meta" style="font-size:13px;">Total estimated battery range</div>
+          </div>
+          <div class="summary-item" style="padding:24px 28px;">
+            <div class="summary-label" style="font-size:13px;"><span id="calc-safety-buffer-label">20%</span> Safety Reserve</div>
+            <div class="summary-value" style="color:var(--accent-amber); font-size:40px; margin-top:6px;" id="calc-safety-buffer">9.7 km</div>
+            <div class="summary-meta" style="font-size:13px;">Kept aside for detours</div>
+          </div>
+          <div class="summary-item" style="padding:24px 28px;">
+            <div class="summary-label" style="font-size:13px;">Usable Safe Reach</div>
+            <div class="summary-value" style="color:var(--accent-green); font-size:44px; margin-top:6px;" id="calc-usable-range">38.6 km</div>
+            <div class="summary-meta" style="font-size:13px;">Max safe charger distance</div>
           </div>
         </div>
 
         <!-- Reachable & Excluded Chargers Breakdown -->
-        <div style="margin-top:24px;">
-          <h3 class="panel-title" style="margin-bottom:12px;">Reachable and compatible chargers</h3>
-          <div id="range-recommendations-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:12px;"></div>
+        <div style="margin-top:28px;">
+          <h3 class="panel-title" style="margin-bottom:14px; font-size:20px;">Reachable Chargers Near You</h3>
+          <div id="range-recommendations-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap:18px;"></div>
         </div>
 
         <div id="range-excluded-section" style="margin-top:24px; display:none;">
-          <h3 class="panel-title" style="margin-bottom:12px; color:var(--text-secondary);">Excluded or beyond safe range</h3>
-          <div id="range-excluded-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:12px;"></div>
+          <h3 class="panel-title" style="margin-bottom:12px; color:var(--text-secondary);">Out of Safe Range</h3>
+          <div id="range-excluded-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap:16px;"></div>
         </div>
 
         <!-- Public Highway Fallback Guidance -->
-        <div id="range-public-fallback" style="margin-top:20px; padding:14px 16px; border:1px solid var(--border-color); background:var(--bg-surface); border-radius:var(--radius-md); font-size:13px; color:var(--text-secondary);">
-          <strong style="color:var(--text-primary);">Public charging fallback:</strong> If no P2P residential dock meets your battery buffer, public highway corridors along Pari Chowk Metro Junction and Noida Expressway Sector 137 maintain 24/7 commercial standby stations.
+        <div id="range-public-fallback" style="margin-top:20px; padding:14px 16px; border:1px solid var(--border-color); background:var(--bg-surface); border-radius:var(--radius-md); font-size:13px; color:var(--text-secondary); display:none;">
+          <strong style="color:var(--text-primary);">Public charging fallback:</strong> Public highway corridors along Pari Chowk Metro Junction and Noida Expressway Sector 137 maintain 24/7 commercial standby stations.
         </div>
       </div>
     </div>
