@@ -1587,31 +1587,16 @@ async function handleApiRequest(req, res, pathname, queryParams) {
       let ses = db.prepare('SELECT * FROM charging_sessions WHERE id = ?').get(sessionId);
       let chg = ses ? db.prepare('SELECT * FROM chargers WHERE id = ?').get(ses.charger_id) : null;
 
-      // Survive Vercel serverless container rotation mid-session instead of failing with 404
-      if (!ses) {
-        if (reqChargerId) {
-          chg = db.prepare('SELECT * FROM chargers WHERE id = ? OR UPPER(code) = ?').get(reqChargerId, String(reqChargerId).toUpperCase().trim());
-        }
-        if (!chg) {
-          chg = db.prepare("SELECT * FROM chargers WHERE verification_status = 'approved' LIMIT 1").get();
-        }
-        if (!chg) return sendJson(res, 404, { error: 'Session and charger not found' });
-
-        const fallbackCode = 'SES-' + Math.floor(10000 + Math.random() * 90000);
-        db.prepare(`
-          INSERT OR IGNORE INTO charging_sessions (
-            id, session_code, booking_id, charger_id, driver_id, host_id,
-            instant_power_kw, voltage, current_amps, session_status, is_simulated
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, 231.5, ?, 'active', 1)
-        `).run(
-          sessionId, fallbackCode, reqBookingId, chg.id, user.id, chg.host_id,
-          chg.power_kw, parseFloat(((chg.power_kw * 1000) / 231.5).toFixed(1))
-        );
-        ses = db.prepare('SELECT * FROM charging_sessions WHERE id = ?').get(sessionId);
+      if (!chg && reqChargerId) {
+        chg = db.prepare('SELECT * FROM chargers WHERE id = ? OR UPPER(code) = ?').get(reqChargerId, String(reqChargerId).toUpperCase().trim());
       }
+      if (!chg) {
+        chg = db.prepare("SELECT * FROM chargers WHERE verification_status = 'approved' LIMIT 1").get();
+      }
+      if (!chg) return sendJson(res, 404, { error: 'Session and charger not found' });
 
-      const kwh = parseFloat(energyKwh) || ses.energy_delivered_kwh || 5.0;
-      const durationSecs = parseInt(elapsedSeconds) || ses.duration_seconds || 1800;
+      const kwh = parseFloat(energyKwh) || ses?.energy_delivered_kwh || 5.0;
+      const durationSecs = parseInt(elapsedSeconds) || ses?.duration_seconds || 1800;
       const hours = durationSecs / 3600;
 
       let baseCost = 0;
@@ -1626,7 +1611,43 @@ async function handleApiRequest(req, res, pathname, queryParams) {
       const gst = parseFloat((platformFee * 0.18).toFixed(2));
       const totalCost = parseFloat((baseCost + platformFee + gst).toFixed(2));
       const hostPayout = baseCost;
-      const targetBookingId = ses.booking_id || reqBookingId;
+      const targetBookingId = ses?.booking_id || reqBookingId;
+
+      // Ensure parent booking row exists BEFORE inserting charging_sessions (FK integrity on Vercel cold start)
+      if (!ses) {
+        if (targetBookingId && !db.prepare('SELECT id FROM bookings WHERE id = ?').get(targetBookingId)) {
+          const now = new Date();
+          const durMins = Math.max(15, Math.round(durationSecs / 60));
+          db.prepare(`
+            INSERT OR IGNORE INTO bookings (
+              id, booking_code, driver_id, host_id, charger_id, vehicle_id,
+              booking_date, start_time, end_time, duration_mins, status,
+              billing_type, estimated_kwh, base_amount, platform_fee, gst_fee,
+              deposit_amount, total_amount, host_payout, payment_status
+            ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, 'completed', ?, ?, ?, ?, ?, 50.00, ?, ?, 'paid')
+          `).run(
+            targetBookingId,
+            body.bookingCode || body.booking_code || ('CE-BK-' + Math.floor(1000 + Math.random() * 9000)),
+            user.id, chg.host_id, chg.id,
+            now.toISOString().slice(0, 10),
+            now.toTimeString().slice(0, 5),
+            new Date(now.getTime() + durMins * 60000).toTimeString().slice(0, 5),
+            durMins, chg.billing_type, kwh, baseCost, platformFee, gst, totalCost, hostPayout
+          );
+        }
+
+        const fallbackCode = 'SES-' + Math.floor(10000 + Math.random() * 90000);
+        db.prepare(`
+          INSERT OR IGNORE INTO charging_sessions (
+            id, session_code, booking_id, charger_id, driver_id, host_id,
+            instant_power_kw, voltage, current_amps, session_status, is_simulated
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 231.5, ?, 'active', 1)
+        `).run(
+          sessionId, fallbackCode, targetBookingId || null, chg.id, user.id, chg.host_id,
+          chg.power_kw, parseFloat(((chg.power_kw * 1000) / 231.5).toFixed(1))
+        );
+        ses = db.prepare('SELECT * FROM charging_sessions WHERE id = ?').get(sessionId);
+      }
 
       db.exec('BEGIN TRANSACTION;');
       try {
