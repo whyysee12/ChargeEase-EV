@@ -985,13 +985,15 @@ textarea.custom-input {
   justify-content: center;
   padding: 16px;
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
-  transition: opacity 0.15s ease;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
 }
 
 .modal-overlay.open,
 .modal-overlay.active {
   opacity: 1;
+  visibility: visible;
   pointer-events: auto;
 }
 
@@ -1774,7 +1776,7 @@ textarea.custom-input {
   gap: 10px;
   font-family: var(--font-mono);
   font-size: 11px;
-  color: #6B6F78;
+  color: #4A4E57;
   letter-spacing: 0.04em;
   margin-bottom: 36px;
 }
@@ -1990,7 +1992,7 @@ textarea.custom-input {
   align-items: center;
   font-family: var(--font-mono);
   font-size: 11px;
-  color: #6B6F78;
+  color: #4A4E57;
   letter-spacing: 0.05em;
   margin-bottom: 18px;
 }
@@ -2028,7 +2030,7 @@ textarea.custom-input {
   align-items: center;
   font-family: var(--font-mono);
   font-size: 11px;
-  color: #6B6F78;
+  color: #4A4E57;
 }
 
 .lp-bento-foot.dark {
@@ -2456,7 +2458,7 @@ textarea.custom-input {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #6B6F78;
+  color: #4A4E57;
   border-top: 1px solid #ECEAE2;
   padding-top: 12px;
   margin: 4px 0 10px;

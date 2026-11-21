@@ -39,6 +39,7 @@
       </div>
     </nav>
 
+    <main id="lp-main">
     <section class="lp-hero">
       <div class="lp-hero-badge">
         <span class="status-dot green"></span>
@@ -247,6 +248,8 @@
       </div>
     </section>
 
+    </main>
+
     <footer class="lp-footer">
       <div class="lp-footer-inner">
         <div>ChargeEase EV &bull; Reachability-First Peer-to-Peer EV Charging Platform</div>
@@ -328,52 +331,52 @@
           <form id="auth-page-form-driver" onsubmit="handleAuthPageDriverSignup(event)">
             <div class="auth-form-grid-2">
               <div>
-                <label class="field-label">Full name</label>
-                <input type="text" id="ap-drv-name" class="custom-input" required placeholder="e.g. Ananya Verma">
+                <label for="ap-drv-name" class="field-label">Full name</label>
+                <input type="text" id="ap-drv-name" class="custom-input" required placeholder="e.g. Ananya Verma" aria-label="Full name">
               </div>
               <div>
-                <label class="field-label">Phone number</label>
-                <input type="tel" id="ap-drv-phone" class="custom-input" required placeholder="+91 98110 22334">
+                <label for="ap-drv-phone" class="field-label">Phone number</label>
+                <input type="tel" id="ap-drv-phone" class="custom-input" required placeholder="+91 98110 22334" aria-label="Phone number">
               </div>
             </div>
             <div class="auth-form-grid-2">
               <div>
-                <label class="field-label">Email address</label>
-                <input type="email" id="ap-drv-email" class="custom-input" required placeholder="driver@example.com">
+                <label for="ap-drv-email" class="field-label">Email address</label>
+                <input type="email" id="ap-drv-email" class="custom-input" required placeholder="driver@example.com" aria-label="Email address">
               </div>
               <div>
-                <label class="field-label">Password (min 6 chars)</label>
-                <input type="password" id="ap-drv-pass" class="custom-input" required minlength="6" placeholder="Create password">
+                <label for="ap-drv-pass" class="field-label">Password (min 6 chars)</label>
+                <input type="password" id="ap-drv-pass" class="custom-input" required minlength="6" placeholder="Create password" aria-label="Password">
               </div>
             </div>
 
             <div class="auth-subdivider">Vehicle Details (for Reachability Engine)</div>
             <div class="auth-form-grid-2">
               <div>
-                <label class="field-label">Manufacturer</label>
-                <input type="text" id="ap-drv-make" class="custom-input" required value="Tata Motors">
+                <label for="ap-drv-make" class="field-label">Manufacturer</label>
+                <input type="text" id="ap-drv-make" class="custom-input" required value="Tata Motors" aria-label="Vehicle manufacturer">
               </div>
               <div>
-                <label class="field-label">Vehicle model</label>
-                <input type="text" id="ap-drv-model" class="custom-input" required value="Nexon EV MR">
+                <label for="ap-drv-model" class="field-label">Vehicle model</label>
+                <input type="text" id="ap-drv-model" class="custom-input" required value="Nexon EV MR" aria-label="Vehicle model">
               </div>
             </div>
             <div class="auth-form-grid-3">
               <div>
-                <label class="field-label">Battery (kWh)</label>
-                <input type="number" step="0.1" id="ap-drv-battery" class="custom-input" required value="30.2">
+                <label for="ap-drv-battery" class="field-label">Battery (kWh)</label>
+                <input type="number" step="0.1" id="ap-drv-battery" class="custom-input" required value="30.2" aria-label="Battery capacity in kWh">
               </div>
               <div>
-                <label class="field-label">Connector type</label>
-                <select id="ap-drv-connector" class="custom-select">
+                <label for="ap-drv-connector" class="field-label">Connector type</label>
+                <select id="ap-drv-connector" class="custom-select" aria-label="Vehicle connector type">
                   <option value="Type 2 AC">Type 2 AC</option>
                   <option value="16A 3-Pin">16A 3-Pin</option>
                   <option value="CCS 2 (Fast DC)">CCS 2 (Fast DC)</option>
                 </select>
               </div>
               <div>
-                <label class="field-label">Reg. number</label>
-                <input type="text" id="ap-drv-reg" class="custom-input" placeholder="DL 3C EV 1042">
+                <label for="ap-drv-reg" class="field-label">Reg. number</label>
+                <input type="text" id="ap-drv-reg" class="custom-input" placeholder="DL 3C EV 1042" aria-label="Vehicle registration number">
               </div>
             </div>
 
@@ -384,42 +387,42 @@
           <form id="auth-page-form-host" style="display:none;" onsubmit="handleAuthPageHostSignup(event)">
             <div class="auth-form-grid-2">
               <div>
-                <label class="field-label">Host full name</label>
-                <input type="text" id="ap-host-name" class="custom-input" required placeholder="e.g. Rohan Malhotra">
+                <label for="ap-host-name" class="field-label">Host full name</label>
+                <input type="text" id="ap-host-name" class="custom-input" required placeholder="e.g. Rohan Malhotra" aria-label="Host full name">
               </div>
               <div>
-                <label class="field-label">Phone number</label>
-                <input type="tel" id="ap-host-phone" class="custom-input" required placeholder="+91 98110 88990">
+                <label for="ap-host-phone" class="field-label">Phone number</label>
+                <input type="tel" id="ap-host-phone" class="custom-input" required placeholder="+91 98110 88990" aria-label="Host phone number">
               </div>
             </div>
             <div class="auth-form-grid-2">
               <div>
-                <label class="field-label">Email address</label>
-                <input type="email" id="ap-host-email" class="custom-input" required placeholder="host@example.com">
+                <label for="ap-host-email" class="field-label">Email address</label>
+                <input type="email" id="ap-host-email" class="custom-input" required placeholder="host@example.com" aria-label="Host email address">
               </div>
               <div>
-                <label class="field-label">Password (min 6 chars)</label>
-                <input type="password" id="ap-host-pass" class="custom-input" required minlength="6" placeholder="Create password">
+                <label for="ap-host-pass" class="field-label">Password (min 6 chars)</label>
+                <input type="password" id="ap-host-pass" class="custom-input" required minlength="6" placeholder="Create password" aria-label="Host password">
               </div>
             </div>
 
             <div class="auth-subdivider">Site Address &amp; Payout Verification</div>
             <div style="margin-bottom:12px;">
-              <label class="field-label">Site / parking bay address (masked before booking)</label>
-              <input type="text" id="ap-host-address" class="custom-input" required placeholder="e.g. Tower C Covered Bay 14, Sector 137">
+              <label for="ap-host-address" class="field-label">Site / parking bay address (masked before booking)</label>
+              <input type="text" id="ap-host-address" class="custom-input" required placeholder="e.g. Tower C Covered Bay 14, Sector 137" aria-label="Charger site or parking bay address">
             </div>
             <div class="auth-form-grid-3">
               <div>
-                <label class="field-label">City</label>
-                <input type="text" id="ap-host-city" class="custom-input" required value="Greater Noida">
+                <label for="ap-host-city" class="field-label">City</label>
+                <input type="text" id="ap-host-city" class="custom-input" required value="Greater Noida" aria-label="City">
               </div>
               <div>
-                <label class="field-label">PIN code</label>
-                <input type="text" id="ap-host-pin" class="custom-input" required value="201305">
+                <label for="ap-host-pin" class="field-label">PIN code</label>
+                <input type="text" id="ap-host-pin" class="custom-input" required value="201305" aria-label="PIN code">
               </div>
               <div>
-                <label class="field-label">UPI ID for payouts</label>
-                <input type="text" id="ap-host-upi" class="custom-input" required placeholder="name@okhdfcbank">
+                <label for="ap-host-upi" class="field-label">UPI ID for payouts</label>
+                <input type="text" id="ap-host-upi" class="custom-input" required placeholder="name@okhdfcbank" aria-label="UPI ID for host payouts">
               </div>
             </div>
 
@@ -429,20 +432,20 @@
           <!-- Unified Backend-Verified Sign In Form -->
           <form id="auth-page-form-login" style="display:none;" onsubmit="handleAuthPageLogin(event)">
             <div style="margin-bottom:12px;">
-              <label class="field-label">Verify role on sign in</label>
-              <select id="ap-login-role" class="custom-select" onchange="syncAsideFromLoginRole(this.value)">
+              <label for="ap-login-role" class="field-label">Verify role on sign in</label>
+              <select id="ap-login-role" class="custom-select" onchange="syncAsideFromLoginRole(this.value)" aria-label="Account role for sign in verification">
                 <option value="driver">EV Driver</option>
                 <option value="host">Charger Host</option>
                 <option value="admin">Platform Admin (Seeded Operations)</option>
               </select>
             </div>
             <div style="margin-bottom:12px;">
-              <label class="field-label">Registered email address</label>
-              <input type="email" id="ap-login-email" class="custom-input" required value="driver@chargeease.com">
+              <label for="ap-login-email" class="field-label">Registered email address</label>
+              <input type="email" id="ap-login-email" class="custom-input" required value="driver@chargeease.com" aria-label="Registered email address">
             </div>
             <div style="margin-bottom:16px;">
-              <label class="field-label">Password</label>
-              <input type="password" id="ap-login-password" class="custom-input" required value="Driver@123">
+              <label for="ap-login-password" class="field-label">Password</label>
+              <input type="password" id="ap-login-password" class="custom-input" required value="Driver@123" aria-label="Password">
             </div>
 
             <button type="submit" class="btn-bolt" style="width:100%; height:44px; font-size:14px; margin-bottom:16px;">Authenticate &amp; Verify Role with Backend</button>
@@ -602,7 +605,7 @@
             <span style="color:var(--text-secondary);">Battery State of Charge</span>
             <span class="tabular" style="font-weight:600;" id="dash-soc-val">24%</span>
           </div>
-          <input type="range" min="5" max="100" value="24" class="custom-range-slider" id="dash-soc-slider" oninput="onBatterySliderChange(this.value)">
+          <input type="range" min="5" max="100" value="24" class="custom-range-slider" id="dash-soc-slider" oninput="onBatterySliderChange(this.value)" aria-label="Current battery state of charge percentage">
         </div>
         <div>
           <div style="font-size:12px; color:var(--text-muted); font-weight:500;">Usable safe range</div>
@@ -671,31 +674,31 @@
           <div class="sidebar-header">
             <div class="city-select-row">
               <span style="font-size:12px; font-weight:600; color:var(--text-secondary);">Service corridor</span>
-              <select id="city-selector" class="custom-select" onchange="handleCityChange(this.value)">
+              <select id="city-selector" class="custom-select" onchange="handleCityChange(this.value)" aria-label="Select service corridor city">
                 <option value="Delhi NCR" selected>Delhi NCR (Greater Noida Corridor)</option>
               </select>
             </div>
             <div class="search-input-box">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input type="text" id="station-search-input" placeholder="Search sector, host, or charger code" oninput="handleSearch(this.value)">
+              <input type="text" id="station-search-input" placeholder="Search sector, host, or charger code" oninput="handleSearch(this.value)" aria-label="Search chargers by sector, host, or charger code">
             </div>
           </div>
 
           <!-- Multi-Attribute Filter & Sort Toolbar -->
           <div class="filter-toolbar">
-            <select id="filter-connector" class="filter-select" onchange="loadStationsFromApi()" title="Filter by connector">
+            <select id="filter-connector" class="filter-select" onchange="loadStationsFromApi()" title="Filter by connector" aria-label="Filter chargers by connector type">
               <option value="all">Connector: All</option>
               <option value="Type 2">Type 2 AC</option>
               <option value="16A">16A 3-Pin</option>
               <option value="CCS 2">CCS 2 DC</option>
             </select>
-            <select id="filter-power" class="filter-select" onchange="loadStationsFromApi()" title="Filter by minimum power">
+            <select id="filter-power" class="filter-select" onchange="loadStationsFromApi()" title="Filter by minimum power" aria-label="Filter chargers by minimum charging power">
               <option value="0">Power: Any kW</option>
               <option value="3.3">3.3+ kW</option>
               <option value="7.4">7.4+ kW</option>
               <option value="11">11+ kW Fast</option>
             </select>
-            <select id="filter-sort" class="filter-select" onchange="loadStationsFromApi()" title="Sort chargers">
+            <select id="filter-sort" class="filter-select" onchange="loadStationsFromApi()" title="Sort chargers" aria-label="Sort chargers">
               <option value="distance">Sort: Nearest</option>
               <option value="price">Sort: Lowest price</option>
               <option value="power">Sort: Highest kW</option>
@@ -758,7 +761,7 @@
         <div class="summary-strip" style="margin-top:12px;">
           <div class="summary-item">
             <div class="summary-label">Vehicle model</div>
-            <select id="range-ev-selector" class="custom-select" style="width:100%; margin-top:6px;" onchange="updateRangeCalc()"></select>
+            <select id="range-ev-selector" class="custom-select" style="width:100%; margin-top:6px;" onchange="updateRangeCalc()" aria-label="Select EV model for reachability calculation"></select>
           </div>
           <div class="summary-item">
             <div class="summary-label">Gross remaining range</div>
@@ -785,19 +788,19 @@
                 <span style="font-weight:500;">Current Battery State of Charge (SoC)</span>
                 <span class="tabular" style="font-weight:600; color:var(--accent-green)" id="slider-soc-display">24%</span>
               </div>
-              <input type="range" min="3" max="100" value="24" class="custom-range-slider" id="battery-soc-slider" oninput="onBatterySliderChange(this.value)">
+              <input type="range" min="3" max="100" value="24" class="custom-range-slider" id="battery-soc-slider" oninput="onBatterySliderChange(this.value)" aria-label="Remaining battery state of charge percentage">
             </div>
             <div>
-              <label class="field-label">Safety buffer (%)</label>
-              <select id="range-buffer-select" class="custom-select" style="width:100%;" onchange="onSafetyBufferChange(this.value)">
+              <label for="range-buffer-select" class="field-label">Safety buffer (%)</label>
+              <select id="range-buffer-select" class="custom-select" style="width:100%;" onchange="onSafetyBufferChange(this.value)" aria-label="Safety reserve buffer percentage">
                 <option value="10">10% (Minimal buffer)</option>
                 <option value="20" selected>20% (Standard reserve)</option>
                 <option value="30">30% (Conservative reserve)</option>
               </select>
             </div>
             <div>
-              <label class="field-label">Required connector</label>
-              <select id="range-connector-select" class="custom-select" style="width:100%;" onchange="updateRangeCalc()">
+              <label for="range-connector-select" class="field-label">Required connector</label>
+              <select id="range-connector-select" class="custom-select" style="width:100%;" onchange="updateRangeCalc()" aria-label="Filter compatible connector type">
                 <option value="all">Any compatible socket</option>
                 <option value="Type 2">Type 2 AC</option>
                 <option value="16A">16A 3-Pin</option>
@@ -958,7 +961,7 @@
             <button class="filter-chip" onclick="setTopupPreset(2000)">+2000</button>
           </div>
           <div style="display:flex; gap:10px;">
-            <input type="number" id="custom-topup-input" value="500" class="custom-input" style="font-family:var(--font-mono);">
+            <input type="number" id="custom-topup-input" value="500" class="custom-input" style="font-family:var(--font-mono);" aria-label="Wallet top-up amount in INR">
             <button class="btn-bolt" onclick="executeWalletTopup()" style="white-space:nowrap;">Add funds</button>
           </div>
         </div>
@@ -979,23 +982,23 @@
             <h3 class="panel-title" style="margin-bottom:12px;">Driver profile</h3>
             <form onsubmit="handleUpdateDriverProfile(event)">
               <div style="margin-bottom:12px;">
-                <label class="field-label">Full name</label>
-                <input type="text" id="prof-driver-name" class="custom-input" value="Rahul Sharma" required>
+                <label for="prof-driver-name" class="field-label">Full name</label>
+                <input type="text" id="prof-driver-name" class="custom-input" value="Rahul Sharma" required aria-label="Driver full name">
               </div>
               <div style="margin-bottom:12px;">
-                <label class="field-label">Email address</label>
-                <input type="email" id="prof-driver-email" class="custom-input" value="driver@chargeease.com" disabled>
+                <label for="prof-driver-email" class="field-label">Email address</label>
+                <input type="email" id="prof-driver-email" class="custom-input" value="driver@chargeease.com" disabled aria-label="Driver email address">
               </div>
               <div style="margin-bottom:12px;">
-                <label class="field-label">Phone number</label>
-                <input type="tel" id="prof-driver-phone" class="custom-input" value="+91 98765 43210">
+                <label for="prof-driver-phone" class="field-label">Phone number</label>
+                <input type="tel" id="prof-driver-phone" class="custom-input" value="+91 98765 43210" aria-label="Driver phone number">
               </div>
               <div style="margin-bottom:16px;">
                 <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
-                  <label class="field-label" style="margin:0;">Default reachability safety buffer</label>
+                  <label for="veh-make" class="field-label" style="margin:0;">Default reachability safety buffer</label>
                   <span id="prof-buffer-val" class="tabular" style="font-weight:600;">20%</span>
                 </div>
-                <input type="range" id="prof-safety-buffer" min="10" max="35" value="20" class="custom-range-slider" oninput="document.getElementById('prof-buffer-val').textContent = this.value + '%'">
+                <input type="range" id="prof-safety-buffer" min="10" max="35" value="20" class="custom-range-slider" oninput="document.getElementById('prof-buffer-val').textContent = this.value + '%'" aria-label="Default safety reserve buffer percentage">
               </div>
               <button type="submit" class="btn-bolt" style="width:100%;">Save profile changes</button>
             </form>
@@ -1009,29 +1012,29 @@
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:10px;">
                   <div>
                     <label class="field-label">Manufacturer</label>
-                    <input type="text" id="veh-make" class="custom-input" placeholder="e.g. Tata Motors" required>
+                    <input type="text" id="veh-make" class="custom-input" placeholder="e.g. Tata Motors" required aria-label="New vehicle manufacturer">
                   </div>
                   <div>
-                    <label class="field-label">Model</label>
-                    <input type="text" id="veh-model" class="custom-input" placeholder="e.g. Nexon EV" required>
+                    <label for="veh-model" class="field-label">Model</label>
+                    <input type="text" id="veh-model" class="custom-input" placeholder="e.g. Nexon EV" required aria-label="New vehicle model">
                   </div>
                 </div>
                 <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-bottom:12px;">
                   <div>
-                    <label class="field-label">Battery (kWh)</label>
-                    <input type="number" id="veh-kwh" class="custom-input" step="0.1" value="30.2" required>
+                    <label for="veh-kwh" class="field-label">Battery (kWh)</label>
+                    <input type="number" id="veh-kwh" class="custom-input" step="0.1" value="30.2" required aria-label="New vehicle battery capacity in kWh">
                   </div>
                   <div>
-                    <label class="field-label">Connector</label>
-                    <select id="veh-connector" class="custom-select" style="width:100%; height:40px;">
+                    <label for="veh-connector" class="field-label">Connector</label>
+                    <select id="veh-connector" class="custom-select" style="width:100%; height:40px;" aria-label="New vehicle connector type">
                       <option value="Type 2 AC">Type 2 AC</option>
                       <option value="16A 3-Pin">16A 3-Pin</option>
                       <option value="CCS 2 (Fast DC)">CCS 2 DC</option>
                     </select>
                   </div>
                   <div>
-                    <label class="field-label">Reg. no</label>
-                    <input type="text" id="veh-reg" class="custom-input" placeholder="DL 3C EV 1234">
+                    <label for="veh-reg" class="field-label">Reg. no</label>
+                    <input type="text" id="veh-reg" class="custom-input" placeholder="DL 3C EV 1234" aria-label="New vehicle registration number">
                   </div>
                 </div>
                 <button type="submit" class="btn-secondary" style="width:100%;">Add vehicle</button>
@@ -1042,8 +1045,8 @@
               <h3 class="panel-title" style="margin-bottom:12px;">Change password</h3>
               <form onsubmit="handleChangePassword(event)">
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:12px;">
-                  <input type="password" id="pwd-current" class="custom-input" placeholder="Current password" required>
-                  <input type="password" id="pwd-new" class="custom-input" placeholder="New password" required>
+                  <input type="password" id="pwd-current" class="custom-input" placeholder="Current password" required aria-label="Current password">
+                  <input type="password" id="pwd-new" class="custom-input" placeholder="New password" required aria-label="New password">
                 </div>
                 <button type="submit" class="btn-secondary" style="width:100%;">Update password</button>
               </form>
@@ -1178,34 +1181,34 @@
         </div>
         <form onsubmit="handleUpdateHostProfile(event)">
           <div style="margin-bottom:12px;">
-            <label class="field-label">Host name</label>
-            <input type="text" id="prof-host-name" class="custom-input" value="Amit Verma" required>
+            <label for="prof-host-name" class="field-label">Host name</label>
+            <input type="text" id="prof-host-name" class="custom-input" value="Amit Verma" required aria-label="Host full name">
           </div>
           <div style="margin-bottom:12px;">
-            <label class="field-label">Email address</label>
-            <input type="email" id="prof-host-email" class="custom-input" value="host@chargeease.com" disabled>
+            <label for="prof-host-email" class="field-label">Email address</label>
+            <input type="email" id="prof-host-email" class="custom-input" value="host@chargeease.com" disabled aria-label="Host email address">
           </div>
           <div style="margin-bottom:12px;">
-            <label class="field-label">Phone number</label>
-            <input type="tel" id="prof-host-phone" class="custom-input" value="+91 98222 33445">
+            <label for="prof-host-phone" class="field-label">Phone number</label>
+            <input type="tel" id="prof-host-phone" class="custom-input" value="+91 98222 33445" aria-label="Host phone number">
           </div>
           <div style="margin-bottom:12px;">
-            <label class="field-label">Property address</label>
-            <input type="text" id="prof-host-address" class="custom-input" value="Wave Silver Tower, Sector 18, Noida">
+            <label for="prof-host-address" class="field-label">Property address</label>
+            <input type="text" id="prof-host-address" class="custom-input" value="Wave Silver Tower, Sector 18, Noida" aria-label="Host charger site address">
           </div>
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
             <div>
-              <label class="field-label">City</label>
-              <input type="text" id="prof-host-city" class="custom-input" value="Delhi NCR">
+              <label for="prof-host-city" class="field-label">City</label>
+              <input type="text" id="prof-host-city" class="custom-input" value="Delhi NCR" aria-label="Host city">
             </div>
             <div>
-              <label class="field-label">PIN code</label>
-              <input type="text" id="prof-host-pin" class="custom-input" value="201301">
+              <label for="prof-host-pin" class="field-label">PIN code</label>
+              <input type="text" id="prof-host-pin" class="custom-input" value="201301" aria-label="Host PIN code">
             </div>
           </div>
           <div style="margin-bottom:16px;">
-            <label class="field-label">UPI payout VPA</label>
-            <input type="text" id="prof-host-upi" class="custom-input" value="amitverma@oksbi">
+            <label for="prof-host-upi" class="field-label">UPI payout VPA</label>
+            <input type="text" id="prof-host-upi" class="custom-input" value="amitverma@oksbi" aria-label="Host UPI ID">
           </div>
           <button type="submit" class="btn-bolt" style="width:100%;">Save host profile</button>
         </form>
@@ -1277,8 +1280,8 @@
           <p class="panel-subtitle">Approve or reject charger hosts after address and payout verification.</p>
         </div>
         <div style="display:flex; gap:8px;">
-          <input type="text" id="admin-host-search" class="custom-input" style="width:220px;" placeholder="Search host name or city" oninput="renderAdminHostsTable()">
-          <select id="admin-host-filter" class="custom-select" style="height:40px;" onchange="renderAdminHostsTable()">
+          <input type="text" id="admin-host-search" class="custom-input" style="width:220px;" placeholder="Search host name or city" oninput="renderAdminHostsTable()" aria-label="Search hosts by name, email, or city">
+          <select id="admin-host-filter" class="custom-select" style="height:40px;" onchange="renderAdminHostsTable()" aria-label="Filter hosts by verification status">
             <option value="all">Status: All</option>
             <option value="verified">Verified</option>
             <option value="pending">Pending</option>
@@ -1297,8 +1300,8 @@
           <p class="panel-subtitle">Review power ratings, connector disclosures, and approve listings for driver discovery.</p>
         </div>
         <div style="display:flex; gap:8px;">
-          <input type="text" id="admin-charger-search" class="custom-input" style="width:220px;" placeholder="Search charger or host" oninput="renderAdminChargersTable()">
-          <select id="admin-charger-filter" class="custom-select" style="height:40px;" onchange="renderAdminChargersTable()">
+          <input type="text" id="admin-charger-search" class="custom-input" style="width:220px;" placeholder="Search charger or host" oninput="renderAdminChargersTable()" aria-label="Search chargers by name, code, or host">
+          <select id="admin-charger-filter" class="custom-select" style="height:40px;" onchange="renderAdminChargersTable()" aria-label="Filter chargers by verification status">
             <option value="all">Status: All</option>
             <option value="approved">Approved</option>
             <option value="pending">Pending</option>
@@ -1317,8 +1320,8 @@
           <p class="panel-subtitle">Inspect registered accounts and manage account suspension controls.</p>
         </div>
         <div style="display:flex; gap:8px;">
-          <input type="text" id="admin-user-search" class="custom-input" style="width:220px;" placeholder="Search name or email" oninput="renderAdminUsersTable()">
-          <select id="admin-user-role-filter" class="custom-select" style="height:40px;" onchange="renderAdminUsersTable()">
+          <input type="text" id="admin-user-search" class="custom-input" style="width:220px;" placeholder="Search name or email" oninput="renderAdminUsersTable()" aria-label="Search users by name or email">
+          <select id="admin-user-role-filter" class="custom-select" style="height:40px;" onchange="renderAdminUsersTable()" aria-label="Filter users by role">
             <option value="all">Role: All</option>
             <option value="driver">Driver</option>
             <option value="host">Host</option>
@@ -1376,7 +1379,7 @@
     <div class="modal-card" style="max-width:500px;">
       <div class="modal-header">
         <div class="modal-title" id="auth-modal-title">Sign in to ChargeEase EV</div>
-        <button class="modal-close-btn" onclick="closeModal('auth-modal')">&times;</button>
+        <button type="button" class="modal-close-btn" onclick="closeModal('auth-modal')" aria-label="Close dialog">&times;</button>
       </div>
       <div class="modal-body">
         <div class="auth-tabs-row">
@@ -1387,12 +1390,12 @@
 
         <form id="auth-form-login" onsubmit="handleFormLogin(event)">
           <div style="margin-bottom:12px;">
-            <label class="field-label">Email address</label>
-            <input type="email" id="login-email" class="custom-input" required value="driver@chargeease.com">
+            <label for="login-email" class="field-label">Email address</label>
+            <input type="email" id="login-email" class="custom-input" required value="driver@chargeease.com" aria-label="Sign in email address">
           </div>
           <div style="margin-bottom:16px;">
-            <label class="field-label">Password</label>
-            <input type="password" id="login-password" class="custom-input" required value="Driver@123">
+            <label for="login-password" class="field-label">Password</label>
+            <input type="password" id="login-password" class="custom-input" required value="Driver@123" aria-label="Sign in password">
           </div>
           <button type="submit" class="btn-bolt" style="width:100%; margin-bottom:14px;">Sign in</button>
 
@@ -1408,41 +1411,41 @@
 
         <form id="auth-form-reg-driver" style="display:none;" onsubmit="handleFormRegisterDriver(event)">
           <div style="margin-bottom:10px;">
-            <label class="field-label">Full name</label>
-            <input type="text" id="reg-drv-name" class="custom-input" required placeholder="Vikram Malhotra">
+            <label for="reg-drv-name" class="field-label">Full name</label>
+            <input type="text" id="reg-drv-name" class="custom-input" required placeholder="Vikram Malhotra" aria-label="Driver registration full name">
           </div>
           <div style="margin-bottom:10px;">
-            <label class="field-label">Email</label>
-            <input type="email" id="reg-drv-email" class="custom-input" required placeholder="vikram@example.com">
+            <label for="reg-drv-email" class="field-label">Email</label>
+            <input type="email" id="reg-drv-email" class="custom-input" required placeholder="vikram@example.com" aria-label="Driver registration email address">
           </div>
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:10px;">
             <div>
-              <label class="field-label">Phone</label>
-              <input type="tel" id="reg-drv-phone" class="custom-input" required placeholder="+91 98000 00000">
+              <label for="reg-drv-phone" class="field-label">Phone</label>
+              <input type="tel" id="reg-drv-phone" class="custom-input" required placeholder="+91 98000 00000" aria-label="Driver registration phone number">
             </div>
             <div>
-              <label class="field-label">Password</label>
-              <input type="password" id="reg-drv-pass" class="custom-input" required placeholder="Minimum 6 chars">
+              <label for="reg-drv-pass" class="field-label">Password</label>
+              <input type="password" id="reg-drv-pass" class="custom-input" required placeholder="Minimum 6 chars" aria-label="Driver registration password">
             </div>
           </div>
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:10px;">
             <div>
-              <label class="field-label">Vehicle manufacturer</label>
-              <input type="text" id="reg-drv-make" class="custom-input" value="Ola Electric">
+              <label for="reg-drv-make" class="field-label">Vehicle manufacturer</label>
+              <input type="text" id="reg-drv-make" class="custom-input" value="Ola Electric" aria-label="Driver registration vehicle manufacturer">
             </div>
             <div>
-              <label class="field-label">Vehicle model</label>
-              <input type="text" id="reg-drv-model" class="custom-input" value="Ola S1 Pro">
+              <label for="reg-drv-model" class="field-label">Vehicle model</label>
+              <input type="text" id="reg-drv-model" class="custom-input" value="Ola S1 Pro" aria-label="Driver registration vehicle model">
             </div>
           </div>
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:14px;">
             <div>
-              <label class="field-label">Battery capacity (kWh)</label>
-              <input type="number" id="reg-drv-battery" class="custom-input" step="0.1" value="4.0">
+              <label for="reg-drv-battery" class="field-label">Battery capacity (kWh)</label>
+              <input type="number" id="reg-drv-battery" class="custom-input" step="0.1" value="4.0" aria-label="Driver registration battery capacity in kWh">
             </div>
             <div>
-              <label class="field-label">Connector type</label>
-              <select id="reg-drv-connector" class="custom-select" style="width:100%; height:40px;">
+              <label for="reg-drv-connector" class="field-label">Connector type</label>
+              <select id="reg-drv-connector" class="custom-select" style="width:100%; height:40px;" aria-label="Driver registration connector type">
                 <option value="16A 3-Pin">16A 3-Pin</option>
                 <option value="Type 2 AC">Type 2 AC</option>
                 <option value="CCS 2 (Fast DC)">CCS 2 (Fast DC)</option>
@@ -1454,40 +1457,40 @@
 
         <form id="auth-form-reg-host" style="display:none;" onsubmit="handleFormRegisterHost(event)">
           <div style="margin-bottom:10px;">
-            <label class="field-label">Full name or society representative</label>
-            <input type="text" id="reg-host-name" class="custom-input" required placeholder="Ramesh Chandra">
+            <label for="reg-host-name" class="field-label">Full name or society representative</label>
+            <input type="text" id="reg-host-name" class="custom-input" required placeholder="Ramesh Chandra" aria-label="Host registration full name">
           </div>
           <div style="margin-bottom:10px;">
-            <label class="field-label">Email</label>
-            <input type="email" id="reg-host-email" class="custom-input" required placeholder="ramesh@society.org">
+            <label for="reg-host-email" class="field-label">Email</label>
+            <input type="email" id="reg-host-email" class="custom-input" required placeholder="ramesh@society.org" aria-label="Host registration email address">
           </div>
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:10px;">
             <div>
-              <label class="field-label">Phone</label>
-              <input type="tel" id="reg-host-phone" class="custom-input" required placeholder="+91 98000 00000">
+              <label for="reg-host-phone" class="field-label">Phone</label>
+              <input type="tel" id="reg-host-phone" class="custom-input" required placeholder="+91 98000 00000" aria-label="Host registration phone number">
             </div>
             <div>
-              <label class="field-label">Password</label>
-              <input type="password" id="reg-host-pass" class="custom-input" required placeholder="Minimum 6 chars">
+              <label for="reg-host-pass" class="field-label">Password</label>
+              <input type="password" id="reg-host-pass" class="custom-input" required placeholder="Minimum 6 chars" aria-label="Host registration password">
             </div>
           </div>
           <div style="margin-bottom:10px;">
-            <label class="field-label">Property address</label>
-            <input type="text" id="reg-host-address" class="custom-input" required placeholder="Society, Sector, Street">
+            <label for="reg-host-address" class="field-label">Property address</label>
+            <input type="text" id="reg-host-address" class="custom-input" required placeholder="Society, Sector, Street" aria-label="Host registration site address">
           </div>
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:10px;">
             <div>
-              <label class="field-label">City</label>
-              <input type="text" id="reg-host-city" class="custom-input" value="Delhi NCR">
+              <label for="reg-host-city" class="field-label">City</label>
+              <input type="text" id="reg-host-city" class="custom-input" value="Delhi NCR" aria-label="Host registration city">
             </div>
             <div>
-              <label class="field-label">PIN code</label>
-              <input type="text" id="reg-host-pin" class="custom-input" value="201301">
+              <label for="reg-host-pin" class="field-label">PIN code</label>
+              <input type="text" id="reg-host-pin" class="custom-input" value="201301" aria-label="Host registration PIN code">
             </div>
           </div>
           <div style="margin-bottom:14px;">
-            <label class="field-label">UPI payout ID</label>
-            <input type="text" id="reg-host-upi" class="custom-input" placeholder="host@paytm">
+            <label for="reg-host-upi" class="field-label">UPI payout ID</label>
+            <input type="text" id="reg-host-upi" class="custom-input" placeholder="host@paytm" aria-label="Host registration UPI ID">
           </div>
           <button type="submit" class="btn-bolt" style="width:100%;">Register charger host</button>
         </form>
@@ -1503,7 +1506,7 @@
           <span class="badge-tag" id="modal-station-badge">ChargeEase AC</span>
           <div class="modal-title" id="modal-station-title" style="margin-top:4px;">Station Details</div>
         </div>
-        <button class="modal-close-btn" onclick="closeModal('station-detail-modal')">&times;</button>
+        <button type="button" class="modal-close-btn" onclick="closeModal('station-detail-modal')" aria-label="Close dialog">&times;</button>
       </div>
       <div class="modal-body" id="station-detail-body">
         <!-- Populated dynamically via GET /api/chargers/:id/details -->
@@ -1516,29 +1519,29 @@
     <div class="modal-card" style="max-width:560px;">
       <div class="modal-header">
         <div class="modal-title">Reserve charging slot</div>
-        <button class="modal-close-btn" onclick="closeModal('booking-modal')">&times;</button>
+        <button type="button" class="modal-close-btn" onclick="closeModal('booking-modal')" aria-label="Close dialog">&times;</button>
       </div>
       <div class="modal-body">
         <div style="margin-bottom:12px;">
-          <label class="field-label">Selected charger</label>
-          <input type="text" id="bm-charger-name" class="custom-input" disabled>
+          <label for="bm-charger-name" class="field-label">Selected charger</label>
+          <input type="text" id="bm-charger-name" class="custom-input" disabled aria-label="Selected charger name">
         </div>
 
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:12px;">
           <div>
-            <label class="field-label">Date</label>
-            <input type="date" id="bm-date" class="custom-input" required>
+            <label for="bm-date" class="field-label">Date</label>
+            <input type="date" id="bm-date" class="custom-input" required aria-label="Booking date">
           </div>
           <div>
-            <label class="field-label">Start time</label>
-            <input type="time" id="bm-time" class="custom-input" value="18:00" required onchange="recalculateModalBooking()">
+            <label for="bm-time" class="field-label">Start time</label>
+            <input type="time" id="bm-time" class="custom-input" value="18:00" required onchange="recalculateModalBooking()" aria-label="Booking start time">
           </div>
         </div>
 
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:12px;">
           <div>
-            <label class="field-label">Duration</label>
-            <select id="bm-duration" class="custom-select" style="width:100%; height:40px;" onchange="recalculateModalBooking()">
+            <label for="bm-duration" class="field-label">Duration</label>
+            <select id="bm-duration" class="custom-select" style="width:100%; height:40px;" onchange="recalculateModalBooking()" aria-label="Booking duration">
               <option value="30">30 minutes</option>
               <option value="60" selected>60 minutes (1 hr)</option>
               <option value="90">90 minutes (1.5 hrs)</option>
@@ -1546,8 +1549,8 @@
             </select>
           </div>
           <div>
-            <label class="field-label">Billing mode</label>
-            <input type="text" id="bm-billing-type" class="custom-input" disabled>
+            <label for="bm-billing-type" class="field-label">Billing mode</label>
+            <input type="text" id="bm-billing-type" class="custom-input" disabled aria-label="Billing type">
           </div>
         </div>
 
@@ -1585,7 +1588,7 @@
     <div class="modal-card">
       <div class="modal-header">
         <div class="modal-title">Charging session invoice</div>
-        <button class="modal-close-btn" onclick="closeModal('receipt-modal')">&times;</button>
+        <button type="button" class="modal-close-btn" onclick="closeModal('receipt-modal')" aria-label="Close dialog">&times;</button>
       </div>
       <div class="modal-body" id="receipt-modal-content"></div>
     </div>
@@ -1596,34 +1599,34 @@
     <div class="modal-card">
       <div class="modal-header">
         <div class="modal-title">Register new charger</div>
-        <button class="modal-close-btn" onclick="closeModal('add-charger-modal')">&times;</button>
+        <button type="button" class="modal-close-btn" onclick="closeModal('add-charger-modal')" aria-label="Close dialog">&times;</button>
       </div>
       <div class="modal-body">
         <form id="add-charger-form" onsubmit="handleOnboardCharger(event)">
           <div style="margin-bottom:12px;">
-            <label class="field-label">Charger title</label>
-            <input type="text" id="new-charger-title" required placeholder="e.g. Sector 137 Covered Smart Point" class="custom-input">
+            <label for="new-charger-title" class="field-label">Charger title</label>
+            <input type="text" id="new-charger-title" required placeholder="e.g. Sector 137 Covered Smart Point" class="custom-input" aria-label="New charger title">
           </div>
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:12px;">
             <div>
-              <label class="field-label">Connector &amp; hardware</label>
-              <select id="new-charger-type" class="custom-select" style="width:100%; height:40px;" onchange="onNewChargerTypeChange(this.value)">
+              <label for="new-charger-type" class="field-label">Connector &amp; hardware</label>
+              <select id="new-charger-type" class="custom-select" style="width:100%; height:40px;" onchange="onNewChargerTypeChange(this.value)" aria-label="New charger connector and hardware type">
                 <option value="Type 2 AC">Type 2 AC (7.4 kW • Metered)</option>
                 <option value="16A 3-Pin">16A Smart Socket (3.3 kW • Hourly)</option>
                 <option value="CCS 2 (Fast DC)">CCS 2 DC Fast (22 kW • Metered)</option>
               </select>
             </div>
             <div>
-              <label class="field-label" id="new-charger-price-label">Tariff (₹ / kWh)</label>
-              <input type="number" id="new-charger-tariff" required value="12.00" step="0.5" class="custom-input">
+              <label for="new-charger-tariff" class="field-label" id="new-charger-price-label">Tariff (₹ / kWh)</label>
+              <input type="number" id="new-charger-tariff" required value="12.00" step="0.5" class="custom-input" aria-label="New charger tariff rate">
             </div>
           </div>
           <div id="new-charger-billing-hint" style="font-size:12px; color:var(--text-secondary); margin-bottom:12px; background:var(--bg-surface); padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border-color);">
             Metered kWh tariff. 10% platform commission is disclosed to drivers prior to booking.
           </div>
           <div style="margin-bottom:14px;">
-            <label class="field-label">Address and access instructions</label>
-            <textarea id="new-charger-address" required rows="2" placeholder="Gate number, parking bay, security desk instructions" class="custom-input"></textarea>
+            <label for="new-charger-address" class="field-label">Address and access instructions</label>
+            <textarea id="new-charger-address" required rows="2" placeholder="Gate number, parking bay, security desk instructions" class="custom-input" aria-label="New charger location and access notes"></textarea>
           </div>
           <button type="submit" class="btn-bolt" style="width:100%;">Publish charger to network</button>
         </form>
@@ -1636,33 +1639,33 @@
     <div class="modal-card">
       <div class="modal-header">
         <div class="modal-title">Edit charger details</div>
-        <button class="modal-close-btn" onclick="closeModal('edit-charger-modal')">&times;</button>
+        <button type="button" class="modal-close-btn" onclick="closeModal('edit-charger-modal')" aria-label="Close dialog">&times;</button>
       </div>
       <div class="modal-body">
         <form onsubmit="handleEditChargerSubmit(event)">
           <input type="hidden" id="edit-chg-id">
           <div style="margin-bottom:12px;">
-            <label class="field-label">Charger name</label>
-            <input type="text" id="edit-chg-name" required class="custom-input">
+            <label for="edit-chg-name" class="field-label">Charger name</label>
+            <input type="text" id="edit-chg-name" required class="custom-input" aria-label="Edit charger name">
           </div>
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:12px;">
             <div>
-              <label class="field-label">Price per kWh (₹)</label>
-              <input type="number" id="edit-chg-kwh-price" step="0.5" required class="custom-input">
+              <label for="edit-chg-kwh-price" class="field-label">Price per kWh (₹)</label>
+              <input type="number" id="edit-chg-kwh-price" step="0.5" required class="custom-input" aria-label="Edit energy tariff per kWh">
             </div>
             <div>
-              <label class="field-label">Hourly time rate (₹/hr)</label>
-              <input type="number" id="edit-chg-time-price" step="0.5" required class="custom-input">
+              <label for="edit-chg-time-price" class="field-label">Hourly time rate (₹/hr)</label>
+              <input type="number" id="edit-chg-time-price" step="0.5" required class="custom-input" aria-label="Edit hourly tariff">
             </div>
           </div>
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:12px;">
             <div>
-              <label class="field-label">Operating hours</label>
-              <input type="text" id="edit-chg-hours" required class="custom-input">
+              <label for="edit-chg-hours" class="field-label">Operating hours</label>
+              <input type="text" id="edit-chg-hours" required class="custom-input" aria-label="Edit operating hours">
             </div>
             <div>
-              <label class="field-label">Availability status</label>
-              <select id="edit-chg-status" class="custom-select" style="width:100%; height:40px;">
+              <label for="edit-chg-status" class="field-label">Availability status</label>
+              <select id="edit-chg-status" class="custom-select" style="width:100%; height:40px;" aria-label="Edit charger availability status">
                 <option value="available">Available</option>
                 <option value="busy">Busy</option>
                 <option value="offline">Offline</option>
@@ -1670,8 +1673,8 @@
             </div>
           </div>
           <div style="margin-bottom:14px;">
-            <label class="field-label">Access instructions (unlocked after booking)</label>
-            <textarea id="edit-chg-access" rows="2" class="custom-input"></textarea>
+            <label for="edit-chg-access" class="field-label">Access instructions (unlocked after booking)</label>
+            <textarea id="edit-chg-access" rows="2" class="custom-input" aria-label="Edit gate and access instructions"></textarea>
           </div>
           <button type="submit" class="btn-bolt" style="width:100%;">Save charger changes</button>
         </form>
@@ -1684,18 +1687,18 @@
     <div class="modal-card" style="max-width:480px;">
       <div class="modal-header">
         <div class="modal-title">Report booking issue or dispute</div>
-        <button class="modal-close-btn" onclick="closeModal('dispute-modal')">&times;</button>
+        <button type="button" class="modal-close-btn" onclick="closeModal('dispute-modal')" aria-label="Close dialog">&times;</button>
       </div>
       <div class="modal-body">
         <form onsubmit="handleCreateDispute(event)">
           <input type="hidden" id="disp-booking-id">
           <div style="margin-bottom:12px;">
-            <label class="field-label">Booking reference</label>
-            <input type="text" id="disp-booking-code" class="custom-input" disabled>
+            <label for="disp-booking-code" class="field-label">Booking reference</label>
+            <input type="text" id="disp-booking-code" class="custom-input" disabled aria-label="Dispute booking reference code">
           </div>
           <div style="margin-bottom:14px;">
-            <label class="field-label">Describe the issue</label>
-            <textarea id="disp-reason" required rows="3" class="custom-input" placeholder="e.g. Charger access blocked, billing discrepancy, or hardware fault"></textarea>
+            <label for="disp-reason" class="field-label">Describe the issue</label>
+            <textarea id="disp-reason" required rows="3" class="custom-input" placeholder="e.g. Charger access blocked, billing discrepancy, or hardware fault" aria-label="Dispute issue description"></textarea>
           </div>
           <button type="submit" class="btn-bolt" style="width:100%;">Submit report to operations</button>
         </form>
@@ -1708,7 +1711,7 @@
     <div class="modal-card" style="max-width:680px;">
       <div class="modal-header">
         <div class="modal-title" id="compliance-modal-title">Terms of Service</div>
-        <button class="modal-close-btn" onclick="closeModal('compliance-modal')">&times;</button>
+        <button type="button" class="modal-close-btn" onclick="closeModal('compliance-modal')" aria-label="Close dialog">&times;</button>
       </div>
       <div class="modal-body" id="compliance-modal-body" style="font-size:13px; color:var(--text-secondary); line-height:1.65;"></div>
     </div>

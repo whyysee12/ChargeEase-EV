@@ -1473,14 +1473,14 @@ async function openStationDetailModal(chargerId) {
         <form onsubmit="submitStationReview(event, '${escapeHtml(st.id)}')" style="padding:12px; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:var(--radius-md);">
           <div style="font-size:12px; font-weight:600; color:var(--text-primary); margin-bottom:8px;">Submit a driver review</div>
           <div style="display:flex; gap:8px; margin-bottom:8px;">
-            <select id="review-rating-select" class="custom-select" style="width:130px;">
+            <select id="review-rating-select" aria-label="Select rating" class="custom-select" style="width:130px;">
               <option value="5">5 - Excellent</option>
               <option value="4">4 - Reliable</option>
               <option value="3">3 - Acceptable</option>
               <option value="2">2 - Slow/Issues</option>
               <option value="1">1 - Unusable</option>
             </select>
-            <input type="text" id="review-comment-input" class="custom-input" placeholder="Share charger accessibility, speed, or host clarity" required>
+            <input type="text" id="review-comment-input" aria-label="Review comment" class="custom-input" placeholder="Share charger accessibility, speed, or host clarity" required>
           </div>
           <button type="submit" class="btn-secondary btn-sm">Post review</button>
         </form>
