@@ -255,7 +255,6 @@
         <div class="lp-footer-actions">
           <button onclick="openAuthPage('signup', 'driver')">Driver Sign Up</button>
           <button onclick="openAuthPage('signup', 'host')">Host Sign Up</button>
-          <button onclick="openAuthPage('login', 'admin')">Admin Verification</button>
           <button onclick="openComplianceDoc('terms')">Terms &amp; Privacy</button>
         </div>
       </div>
@@ -435,7 +434,6 @@
               <select id="ap-login-role" class="custom-select" onchange="syncAsideFromLoginRole(this.value)" aria-label="Account role for sign in verification">
                 <option value="driver">EV Driver</option>
                 <option value="host">Charger Host</option>
-                <option value="admin">Platform Admin (Seeded Operations)</option>
               </select>
             </div>
             <div style="margin-bottom:12px;">
@@ -454,7 +452,6 @@
               <div style="display:flex; gap:8px; flex-wrap:wrap;">
                 <button type="button" class="filter-chip" onclick="quickVerifyDemoOnAuthPage('driver')">Verify Driver (Rahul)</button>
                 <button type="button" class="filter-chip" onclick="quickVerifyDemoOnAuthPage('host')">Verify Host (Amit)</button>
-                <button type="button" class="filter-chip" onclick="quickVerifyDemoOnAuthPage('admin')">Verify Admin</button>
               </div>
             </div>
           </form>
@@ -476,9 +473,6 @@
       </button>
       <button class="demo-role-btn" id="demo-btn-host" onclick="switchDemoAccount('host')">
         Host (Amit Verma)
-      </button>
-      <button class="demo-role-btn" id="demo-btn-admin" onclick="switchDemoAccount('admin')">
-        Admin (Operations)
       </button>
       <span class="badge-tag" title="Seeded non-production data for hackathon demonstration">Demo dataset</span>
     </div>
@@ -511,7 +505,6 @@
     <div class="mode-switcher" id="header-mode-switcher">
       <button class="mode-btn active" id="mode-driver-btn" onclick="switchRoleExperience('driver')">Driver</button>
       <button class="mode-btn" id="mode-host-btn" onclick="switchRoleExperience('host')">Host</button>
-      <button class="mode-btn" id="mode-admin-btn" onclick="switchRoleExperience('admin')">Admin</button>
     </div>
 
     <div class="header-actions">
@@ -570,14 +563,6 @@
     <div class="nav-tab-item" data-tab="host-bookings" data-role="host" data-secondary="true" style="display:none;" onclick="switchTab('host-bookings')">Booking requests</div>
     <div class="nav-tab-item" data-tab="host-earnings" data-role="host" onclick="switchTab('host-earnings')">Earnings &amp; Payouts</div>
     <div class="nav-tab-item" data-tab="host-profile" data-role="host" data-secondary="true" style="display:none;" onclick="switchTab('host-profile')">Host profile</div>
-
-    <!-- Admin Navigation (Focused 3 Core Tabs) -->
-    <div class="nav-tab-item" data-tab="admin-analytics" data-role="admin" onclick="switchTab('admin-analytics')">Overview</div>
-    <div class="nav-tab-item" data-tab="admin-hosts" data-role="admin" onclick="switchTab('admin-hosts')">Host Verification</div>
-    <div class="nav-tab-item" data-tab="admin-chargers" data-role="admin" data-secondary="true" style="display:none;" onclick="switchTab('admin-chargers')">Charger verification</div>
-    <div class="nav-tab-item" data-tab="admin-users" data-role="admin" data-secondary="true" style="display:none;" onclick="switchTab('admin-users')">Users</div>
-    <div class="nav-tab-item" data-tab="admin-disputes" data-role="admin" onclick="switchTab('admin-disputes')">Disputes</div>
-    <div class="nav-tab-item" data-tab="admin-logs" data-role="admin" data-secondary="true" style="display:none;" onclick="switchTab('admin-logs')">Audit logs</div>
   </nav>
 
   <!-- ==================== MAIN VIEW CONTAINER ==================== -->
@@ -1220,145 +1205,6 @@
       </div>
     </div>
 
-
-    <!-- ==================== ADMIN VIEWS ==================== -->
-
-    <!-- A1: ADMIN ANALYTICS, BOOKINGS & TRANSACTIONS -->
-    <div id="view-admin-analytics" class="tab-view" style="display:none;">
-      <div class="panel-header" style="margin-bottom:16px;">
-        <div>
-          <h2 style="font-size:22px; font-weight:700;">Platform operations and analytics</h2>
-          <p class="panel-subtitle">Real-time database totals across drivers, hosts, bookings, and platform revenue.</p>
-        </div>
-        <span class="badge-tag">Operations administrator</span>
-      </div>
-
-      <div class="summary-strip">
-        <div class="summary-item">
-          <div class="summary-label">Drivers</div>
-          <div class="summary-value" id="admin-m-users">0</div>
-        </div>
-        <div class="summary-item">
-          <div class="summary-label">Hosts</div>
-          <div class="summary-value" id="admin-m-hosts">0</div>
-        </div>
-        <div class="summary-item">
-          <div class="summary-label">Registered chargers</div>
-          <div class="summary-value" style="color:var(--accent-blue)" id="admin-m-chargers">0</div>
-        </div>
-        <div class="summary-item">
-          <div class="summary-label">Active bookings</div>
-          <div class="summary-value" id="admin-m-active-bookings">0</div>
-        </div>
-        <div class="summary-item">
-          <div class="summary-label">Platform GMV</div>
-          <div class="summary-value" style="color:var(--accent-green)" id="admin-m-gmv">₹ 0.00</div>
-        </div>
-        <div class="summary-item">
-          <div class="summary-label">Platform commission</div>
-          <div class="summary-value" id="admin-m-revenue">₹ 0.00</div>
-        </div>
-      </div>
-
-      <div style="display:flex; flex-direction:column; gap:20px;">
-        <div class="panel-card">
-          <div class="panel-header">
-            <h3 class="panel-title">Recent platform bookings</h3>
-          </div>
-          <div id="admin-bookings-table-container"></div>
-        </div>
-
-        <div class="panel-card">
-          <div class="panel-header">
-            <h3 class="panel-title">Platform payment ledger</h3>
-          </div>
-          <div id="admin-transactions-table-container"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- A2: ADMIN HOST VERIFICATION -->
-    <div id="view-admin-hosts" class="tab-view" style="display:none;">
-      <div class="panel-header" style="flex-wrap:wrap; margin-bottom:16px;">
-        <div>
-          <h2 style="font-size:20px; font-weight:700;">Host verification queue</h2>
-          <p class="panel-subtitle">Approve or reject charger hosts after address and payout verification.</p>
-        </div>
-        <div style="display:flex; gap:8px;">
-          <input type="text" id="admin-host-search" class="custom-input" style="width:220px;" placeholder="Search host name or city" oninput="renderAdminHostsTable()" aria-label="Search hosts by name, email, or city">
-          <select id="admin-host-filter" class="custom-select" style="height:40px;" onchange="renderAdminHostsTable()" aria-label="Filter hosts by verification status">
-            <option value="all">Status: All</option>
-            <option value="verified">Verified</option>
-            <option value="pending">Pending</option>
-            <option value="rejected">Rejected</option>
-          </select>
-        </div>
-      </div>
-      <div id="admin-hosts-table-container"></div>
-    </div>
-
-    <!-- A3: ADMIN CHARGER APPROVALS -->
-    <div id="view-admin-chargers" class="tab-view" style="display:none;">
-      <div class="panel-header" style="flex-wrap:wrap; margin-bottom:16px;">
-        <div>
-          <h2 style="font-size:20px; font-weight:700;">Charger listing audit</h2>
-          <p class="panel-subtitle">Review power ratings, connector disclosures, and approve listings for driver discovery.</p>
-        </div>
-        <div style="display:flex; gap:8px;">
-          <input type="text" id="admin-charger-search" class="custom-input" style="width:220px;" placeholder="Search charger or host" oninput="renderAdminChargersTable()" aria-label="Search chargers by name, code, or host">
-          <select id="admin-charger-filter" class="custom-select" style="height:40px;" onchange="renderAdminChargersTable()" aria-label="Filter chargers by verification status">
-            <option value="all">Status: All</option>
-            <option value="approved">Approved</option>
-            <option value="pending">Pending</option>
-            <option value="rejected">Rejected</option>
-          </select>
-        </div>
-      </div>
-      <div id="admin-chargers-table-container"></div>
-    </div>
-
-    <!-- A4: ADMIN USER DIRECTORY -->
-    <div id="view-admin-users" class="tab-view" style="display:none;">
-      <div class="panel-header" style="flex-wrap:wrap; margin-bottom:16px;">
-        <div>
-          <h2 style="font-size:20px; font-weight:700;">Platform user directory</h2>
-          <p class="panel-subtitle">Inspect registered accounts and manage account suspension controls.</p>
-        </div>
-        <div style="display:flex; gap:8px;">
-          <input type="text" id="admin-user-search" class="custom-input" style="width:220px;" placeholder="Search name or email" oninput="renderAdminUsersTable()" aria-label="Search users by name or email">
-          <select id="admin-user-role-filter" class="custom-select" style="height:40px;" onchange="renderAdminUsersTable()" aria-label="Filter users by role">
-            <option value="all">Role: All</option>
-            <option value="driver">Driver</option>
-            <option value="host">Host</option>
-            <option value="admin">Admin</option>
-          </select>
-        </div>
-      </div>
-      <div id="admin-users-table-container"></div>
-    </div>
-
-    <!-- A5: ADMIN DISPUTE MANAGEMENT -->
-    <div id="view-admin-disputes" class="tab-view" style="display:none;">
-      <div class="panel-header" style="margin-bottom:16px;">
-        <div>
-          <h2 style="font-size:20px; font-weight:700;">Disputes and reported issues</h2>
-          <p class="panel-subtitle">Review booking complaints submitted by drivers or hosts and log official resolutions.</p>
-        </div>
-      </div>
-      <div id="admin-disputes-table-container"></div>
-    </div>
-
-    <!-- A6: ADMIN AUDIT LOGS -->
-    <div id="view-admin-logs" class="tab-view" style="display:none;">
-      <div class="panel-header" style="margin-bottom:16px;">
-        <div>
-          <h2 style="font-size:20px; font-weight:700;">Administrative activity logs</h2>
-          <p class="panel-subtitle">Server-recorded governance actions across hosts, chargers, users, and disputes.</p>
-        </div>
-      </div>
-      <div id="admin-full-logs-container"></div>
-    </div>
-
   </main>
 
   <!-- ==================== FOOTER (PRODUCT TRUST & COMPLIANCE) ==================== -->
@@ -1409,7 +1255,6 @@
             <div style="display:flex; gap:6px; flex-wrap:wrap;">
               <button type="button" class="filter-chip" onclick="prefillLogin('driver@chargeease.com', 'Driver@123')">Driver</button>
               <button type="button" class="filter-chip" onclick="prefillLogin('host@chargeease.com', 'Host@123')">Host</button>
-              <button type="button" class="filter-chip" onclick="prefillLogin('admin@chargeease.com', 'Admin@123')">Admin</button>
             </div>
           </div>
         </form>

@@ -275,26 +275,18 @@ function toggleThemeMode() {
 }
 
 function selectAuthPageRole(role) {
-  const validRole = ['driver', 'host', 'admin'].includes(role) ? role : 'driver';
+  const validRole = role === 'host' ? 'host' : 'driver';
   state.authPageRole = validRole;
 
   if (getEl('auth-role-card-driver')) getEl('auth-role-card-driver').classList.toggle('active', validRole === 'driver');
   if (getEl('auth-role-card-host')) getEl('auth-role-card-host').classList.toggle('active', validRole === 'host');
   if (getEl('ap-login-role')) getEl('ap-login-role').value = validRole;
 
-  if (validRole === 'admin') {
-    selectAuthPageMode('login');
-  } else {
-    syncAuthPageVisibility();
-  }
+  syncAuthPageVisibility();
   syncAsideFromLoginRole(validRole);
 }
 
 function selectAuthPageMode(mode) {
-  if (state.authPageRole === 'admin' && mode === 'signup') {
-    setAuthPageStatus('Admin accounts are provisioned securely by operations and cannot be publicly registered. Use verified Sign In.', 'info');
-    mode = 'login';
-  }
   state.authPageMode = mode;
   if (getEl('auth-mode-tab-signup')) getEl('auth-mode-tab-signup').classList.toggle('active', mode === 'signup');
   if (getEl('auth-mode-tab-login')) getEl('auth-mode-tab-login').classList.toggle('active', mode === 'login');
@@ -334,14 +326,6 @@ function syncAsideFromLoginRole(role) {
       <li>Full address stays privacy-masked until slot confirmation</li>
       <li>Approve or reject reservations &amp; toggle charger online status</li>
       <li>Real-time payout ledger separated from platform commission</li>`;
-  } else if (role === 'admin') {
-    badge.innerHTML = '<span class="status-dot amber"></span> PLATFORM OPERATIONS';
-    title.textContent = 'Govern KYC, disputes &amp; network audit.';
-    desc.textContent = 'Admin sign-in verifies elevated role tokens strictly against SQLite user records.';
-    list.innerHTML = `
-      <li>Verify or reject host KYC and charger listings</li>
-      <li>Arbitrate open driver/host disputes &amp; review receipts</li>
-      <li>Monitor GMV, GST ledger &amp; full activity logs</li>`;
   } else {
     badge.innerHTML = '<span class="status-dot green"></span> EV DRIVER ACCOUNT';
     title.textContent = 'Charge anywhere with range certainty.';
@@ -460,8 +444,7 @@ async function handleAuthPageLogin(e) {
 function quickVerifyDemoOnAuthPage(role) {
   const creds = {
     driver: { email: 'driver@chargeease.com', password: 'Driver@123' },
-    host: { email: 'host@chargeease.com', password: 'Host@123' },
-    admin: { email: 'admin@chargeease.com', password: 'Admin@123' }
+    host: { email: 'host@chargeease.com', password: 'Host@123' }
   }[role];
   if (!creds) return;
 
@@ -530,8 +513,7 @@ async function hydrateAuthenticatedSession() {
 async function switchDemoAccount(role, silent = false) {
   const creds = {
     driver: { email: 'driver@chargeease.com', password: 'Driver@123' },
-    host: { email: 'host@chargeease.com', password: 'Host@123' },
-    admin: { email: 'admin@chargeease.com', password: 'Admin@123' }
+    host: { email: 'host@chargeease.com', password: 'Host@123' }
   }[role];
 
   if (!creds) return;
@@ -561,7 +543,7 @@ function updateAuthUI() {
   const walletAmt = getEl('header-wallet-amt');
   const vehiclePill = getEl('header-vehicle-pill');
 
-  ['driver', 'host', 'admin'].forEach(r => {
+  ['driver', 'host'].forEach(r => {
     const demoBtn = getEl(`demo-btn-${r}`);
     if (demoBtn) {
       demoBtn.classList.toggle('active', Boolean(user && user.role === r));
@@ -723,9 +705,7 @@ async function handleFormRegisterHost(e) {
 
 // -------------------- Navigation & Role Switching --------------------
 function navigateToRoleHome() {
-  const homeTab = state.currentRole === 'host'
-    ? 'host-dash'
-    : (state.currentRole === 'admin' ? 'admin-analytics' : 'explore');
+  const homeTab = state.currentRole === 'host' ? 'host-dash' : 'explore';
   switchTab(homeTab);
 }
 
@@ -735,31 +715,30 @@ function openRoleProfile() {
     return;
   }
   if (state.currentRole === 'host') switchTab('host-profile');
-  else if (state.currentRole === 'admin') switchTab('admin-analytics');
   else switchTab('garage');
 }
 
 function switchRoleExperience(role, fromHydration = false) {
-  if (!fromHydration && (!state.currentUser || state.currentUser.role !== role)) {
-    // Allow instant demo role switch if triggered by role pill
-    switchDemoAccount(role);
+  const targetRole = role === 'host' ? 'host' : 'driver';
+  if (!fromHydration && (!state.currentUser || state.currentUser.role !== targetRole)) {
+    switchDemoAccount(targetRole);
     return;
   }
 
-  state.currentRole = role;
+  state.currentRole = targetRole;
 
-  ['driver', 'host', 'admin'].forEach(r => {
+  ['driver', 'host'].forEach(r => {
     const btn = getEl(`mode-${r}-btn`);
-    if (btn) btn.classList.toggle('active', r === role);
+    if (btn) btn.classList.toggle('active', r === targetRole);
   });
 
   document.querySelectorAll('#app-tabs-bar .nav-tab-item').forEach(tabEl => {
     const tabRole = tabEl.dataset.role;
     const isSecondary = tabEl.dataset.secondary === 'true';
-    tabEl.style.display = (tabRole === role && !isSecondary) ? 'flex' : 'none';
+    tabEl.style.display = (tabRole === targetRole && !isSecondary) ? 'flex' : 'none';
   });
 
-  const defaultTab = role === 'host' ? 'host-dash' : (role === 'admin' ? 'admin-analytics' : 'explore');
+  const defaultTab = targetRole === 'host' ? 'host-dash' : 'explore';
   switchTab(defaultTab);
 }
 
@@ -799,8 +778,6 @@ function switchTab(tabId) {
     loadHostEarnings();
   } else if (tabId === 'host-profile') {
     populateHostProfileForm();
-  } else if (tabId.startsWith('admin-')) {
-    loadAdminData();
   }
 }
 
