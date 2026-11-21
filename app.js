@@ -362,7 +362,9 @@ async function verifyAndEnterWithToken(token, expectedRoleLabel) {
   const verifiedMe = await apiFetch('/auth/me');
   state.currentUser = verifiedMe.user;
   state.currentRole = verifiedMe.user.role;
-  if (verifiedMe.vehicle) state.activeVehicle = verifiedMe.vehicle;
+  state.driverProfile = verifiedMe.user?.driverProfile || verifiedMe.driverProfile || null;
+  state.hostProfile = verifiedMe.user?.hostProfile || verifiedMe.hostProfile || null;
+  if (verifiedMe.user?.vehicle || verifiedMe.vehicle) state.activeVehicle = verifiedMe.user?.vehicle || verifiedMe.vehicle;
 
   setAuthPageStatus(`Verified with backend (${expectedRoleLabel}: ${verifiedMe.user.name}). Opening workspace...`, 'success');
   updateAuthUI();
@@ -502,11 +504,12 @@ async function hydrateAuthenticatedSession() {
   const me = await apiFetch('/auth/me');
   state.currentUser = me.user;
   state.currentRole = me.user.role || 'driver';
-  state.driverProfile = me.driverProfile || null;
-  state.hostProfile = me.hostProfile || null;
-  if (me.vehicle) state.activeVehicle = me.vehicle;
-  if (me.driverProfile && me.driverProfile.safety_buffer_pct) {
-    state.safetyBufferPct = me.driverProfile.safety_buffer_pct;
+  state.driverProfile = me.user?.driverProfile || me.driverProfile || null;
+  state.hostProfile = me.user?.hostProfile || me.hostProfile || null;
+  const veh = me.user?.vehicle || me.vehicle;
+  if (veh) state.activeVehicle = veh;
+  if (state.driverProfile && state.driverProfile.safety_buffer_pct) {
+    state.safetyBufferPct = state.driverProfile.safety_buffer_pct;
   }
   try { localStorage.setItem('ce_user_cache', JSON.stringify(me.user)); } catch (_) {}
 
@@ -657,8 +660,8 @@ async function openUserInfoModal() {
     if (me && me.user) {
       u = me.user;
       state.currentUser = u;
-      state.activeVehicle = me.vehicle || veh;
-      state.hostProfile = me.hostProfile || hp;
+      state.activeVehicle = u.vehicle || me.vehicle || veh;
+      state.hostProfile = u.hostProfile || me.hostProfile || hp;
       veh = state.activeVehicle;
       hp = state.hostProfile;
       updateAuthUI();
@@ -2685,7 +2688,7 @@ async function populateHostProfileForm() {
   try {
     const me = await apiFetch('/auth/me');
     const u = me.user || {};
-    const hp = me.hostProfile || {};
+    const hp = u.hostProfile || me.hostProfile || {};
 
     if (getEl('prof-host-name')) getEl('prof-host-name').value = u.name || '';
     if (getEl('prof-host-email')) getEl('prof-host-email').value = u.email || '';
