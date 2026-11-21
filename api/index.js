@@ -4,7 +4,7 @@ require('../backend/db');
 const { handleApiRequest } = require('../backend/api');
 
 const SECURITY_HEADERS = {
-  'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: http:; connect-src 'self' https://router.project-osrm.org https://*.tile.openstreetmap.org; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+  'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: http:; connect-src 'self' https://charge-ease-ev-five.vercel.app https://*.vercel.app https://router.project-osrm.org https://*.tile.openstreetmap.org; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
   'X-Content-Type-Options': 'nosniff',
   'Permissions-Policy': 'geolocation=(self), camera=(), microphone=(), payment=()',
   'Referrer-Policy': 'strict-origin-when-cross-origin',

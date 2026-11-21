@@ -3441,3 +3441,38 @@ button, a, input, select, textarea, .station-card, .nav-tab-item {
     width: 100% !important;
   }
 }
+
+/* ---- Live OTA Update Banner ---- */
+.app-update-banner {
+  position: fixed;
+  top: max(env(safe-area-inset-top, 0px), 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9998;
+  width: min(560px, calc(100vw - 24px));
+  background: var(--bg-card);
+  border: 1px solid rgba(16, 185, 129, 0.45);
+  border-radius: 12px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  box-shadow: var(--shadow-floating);
+}
+
+.app-update-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.app-update-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

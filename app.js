@@ -530,11 +530,63 @@ function quickVerifyDemoOnAuthPage(role) {
   handleAuthPageLogin(new Event('submit'));
 }
 
+let pendingServerVersion = null;
+
+async function checkAppUpdate(manual = false) {
+  try {
+    const res = await apiFetch(`/health?t=${Date.now()}`);
+    const latest = res.buildVersion || res.version;
+    if (!latest) return;
+
+    const current = localStorage.getItem('ce_build_version');
+    if (!current) {
+      localStorage.setItem('ce_build_version', latest);
+      if (manual) showToast(`App is up to date (${latest})`, 'success');
+      return;
+    }
+
+    if (current !== latest) {
+      pendingServerVersion = latest;
+      if (manual) {
+        showToast(`Updating to ${latest}...`, 'info');
+        applyLiveAppUpdate(latest);
+        return;
+      }
+      const msgEl = getEl('app-update-msg');
+      const banner = getEl('app-update-banner');
+      if (msgEl) msgEl.textContent = `New update available (${latest})`;
+      if (banner) banner.style.display = 'flex';
+    } else if (manual) {
+      showToast(`Already running latest version (${latest})`, 'success');
+    }
+  } catch (err) {
+    if (manual) showToast(err.message || 'Could not reach update server', 'error');
+  }
+}
+
+function applyLiveAppUpdate(versionOverride = null) {
+  const nextVer = versionOverride || pendingServerVersion;
+  if (nextVer) {
+    localStorage.setItem('ce_build_version', nextVer);
+  }
+  const banner = getEl('app-update-banner');
+  if (banner) banner.style.display = 'none';
+  const targetVer = encodeURIComponent(nextVer || String(Date.now()));
+  window.location.replace(`${window.location.pathname}?v=${targetVer}`);
+}
+
+function dismissUpdateBanner() {
+  const banner = getEl('app-update-banner');
+  if (banner) banner.style.display = 'none';
+}
+
 // -------------------- Initialization & Authentication --------------------
 document.addEventListener('DOMContentLoaded', async () => {
   applyThemeMode(localStorage.getItem('ce_theme') || 'dark');
   bindOverlayCloseHandlers();
   updateLandingEstimator();
+  checkAppUpdate(false);
+  setInterval(() => checkAppUpdate(false), 45000);
 
   if (state.authToken) {
     try {
@@ -787,6 +839,7 @@ async function openUserInfoModal() {
 
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
       <button type="button" class="btn-bolt" style="flex:1;" onclick="closeModal('user-info-modal'); enterAppWorkspace(); switchTab('${u.role === 'host' ? 'host-profile' : 'garage'}');">Edit Profile &amp; ${u.role === 'host' ? 'Site' : 'Garage'}</button>
+      <button type="button" class="btn-secondary" onclick="checkAppUpdate(true)">Sync Latest Update</button>
       <button type="button" class="btn-secondary" onclick="closeModal('user-info-modal'); openAuthModal('signin', true);">Switch Account</button>
       <button type="button" class="btn-danger" onclick="closeModal('user-info-modal'); handleLogout();">Sign Out</button>
     </div>

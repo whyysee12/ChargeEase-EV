@@ -30,10 +30,15 @@ function parseBody(req) {
 }
 
 // Utility: Send standard JSON response with security headers
-function sendJson(res, statusCode, data) {
-  res.writeHead(statusCode, {
+const APP_BUILD_VERSION = process.env.VERCEL_GIT_COMMIT_SHA
+  ? ('2026.11.22-' + process.env.VERCEL_GIT_COMMIT_SHA.slice(0, 7))
+  : '2026.11.22-v5.3';
+const APK_DOWNLOAD_URL = 'https://github.com/whyysee12/ChargeEase-EV/raw/main/app-debug.apk';
+
+function sendJson(res, statusCode, data, extraHeaders = {}) {
+  res.writeHead(statusCode, Object.assign({
     'Content-Type': 'application/json',
-    'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: http:; connect-src 'self' https://router.project-osrm.org https://*.tile.openstreetmap.org; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+    'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: http:; connect-src 'self' https://charge-ease-ev-five.vercel.app https://*.vercel.app https://router.project-osrm.org https://*.tile.openstreetmap.org; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
     'X-Content-Type-Options': 'nosniff',
     'Permissions-Policy': 'geolocation=(self), camera=(), microphone=(), payment=()',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
@@ -42,7 +47,7 @@ function sendJson(res, statusCode, data) {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-auth-token, x-chargeease-vault, x-chargeease-chargers'
-  });
+  }, extraHeaders));
   res.end(JSON.stringify(data));
 }
 
@@ -68,15 +73,17 @@ async function handleApiRequest(req, res, pathname, queryParams) {
     // 1. PUBLIC & AUTHENTICATION ENDPOINTS
     // =========================================================
 
-    // Health Check
-    if (pathname === '/api/health' && req.method === 'GET') {
+    // Health & Live OTA Version Check
+    if ((pathname === '/api/health' || pathname === '/api/version') && req.method === 'GET') {
       return sendJson(res, 200, {
         status: 'online',
         service: 'ChargeEase EV API Engine',
-        version: '5.0.0',
+        version: '5.3.0',
+        buildVersion: APP_BUILD_VERSION,
+        apkDownloadUrl: APK_DOWNLOAD_URL,
         db: 'SQLite Connected',
         timestamp: new Date().toISOString()
-      });
+      }, { 'Cache-Control': 'no-store' });
     }
 
     // Driver Registration
