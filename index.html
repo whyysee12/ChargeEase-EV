@@ -32,7 +32,7 @@
 
         <div class="lp-nav-actions">
           <button type="button" class="lp-btn-outline" id="lp-theme-toggle-btn" onclick="toggleThemeMode()" aria-label="Toggle dark mode">Light Mode</button>
-          <button type="button" class="lp-btn-ghost" onclick="openAuthPage('login', 'driver')">Sign In</button>
+          <button type="button" class="lp-btn-ghost" id="lp-nav-signin-btn" onclick="handleLandingAuthButtonClick()">Sign In</button>
           <button type="button" class="lp-btn-solid" id="lp-nav-workspace-btn" onclick="enterAppWorkspace()">Open App</button>
         </div>
       </div>
@@ -525,10 +525,11 @@
         <span class="tabular" style="color:var(--text-primary); font-weight:600" id="header-vehicle-soc">24%</span>
       </div>
 
-      <div class="user-profile-btn" onclick="openRoleProfile()" title="Profile and account">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        <span class="user-status-dot"></span>
-      </div>
+      <button type="button" class="user-profile-btn" onclick="openRoleProfile()" title="Account &amp; signed-in user details" aria-label="View signed-in user details">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span id="header-user-name" style="font-size:13px; font-weight:600; color:var(--text-primary); white-space:nowrap;">Rahul Sharma</span>
+        <span class="role-badge role-driver" id="header-user-role-badge" style="font-size:10px;">Driver</span>
+      </button>
 
       <button type="button" class="demo-action-btn" onclick="handleLogout()" style="height:38px; padding:0 14px;">Sign Out</button>
     </div>
@@ -1551,6 +1552,17 @@
           <button type="submit" class="btn-bolt" style="width:100%;">Submit report to operations</button>
         </form>
       </div>
+    </div>
+  </div>
+
+  <!-- Modal: Signed-In User Account Information -->
+  <div class="modal-overlay" id="user-info-modal">
+    <div class="modal-card" style="max-width:520px;">
+      <div class="modal-header">
+        <div class="modal-title">Signed-in account details</div>
+        <button type="button" class="modal-close-btn" onclick="closeModal('user-info-modal')" aria-label="Close dialog">&times;</button>
+      </div>
+      <div class="modal-body" id="user-info-modal-body"></div>
     </div>
   </div>
 

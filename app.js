@@ -49,7 +49,9 @@ const state = {
   telemetryPaused: false,
   authPageRole: 'driver',
   authPageMode: 'signup',
-  currentStage: 'landing'
+  currentStage: 'landing',
+  driverProfile: null,
+  hostProfile: null
 };
 
 const HERO_SHOWCASES = [
@@ -500,10 +502,13 @@ async function hydrateAuthenticatedSession() {
   const me = await apiFetch('/auth/me');
   state.currentUser = me.user;
   state.currentRole = me.user.role || 'driver';
+  state.driverProfile = me.driverProfile || null;
+  state.hostProfile = me.hostProfile || null;
   if (me.vehicle) state.activeVehicle = me.vehicle;
   if (me.driverProfile && me.driverProfile.safety_buffer_pct) {
     state.safetyBufferPct = me.driverProfile.safety_buffer_pct;
   }
+  try { localStorage.setItem('ce_user_cache', JSON.stringify(me.user)); } catch (_) {}
 
   updateAuthUI();
   switchRoleExperience(state.currentRole, true);
@@ -542,6 +547,9 @@ function updateAuthUI() {
   const btnLogout = getEl('btn-auth-logout');
   const walletAmt = getEl('header-wallet-amt');
   const vehiclePill = getEl('header-vehicle-pill');
+  const headerUserName = getEl('header-user-name');
+  const headerRoleBadge = getEl('header-user-role-badge');
+  const lpSignInBtn = getEl('lp-nav-signin-btn');
 
   ['driver', 'host'].forEach(r => {
     const demoBtn = getEl(`demo-btn-${r}`);
@@ -556,6 +564,12 @@ function updateAuthUI() {
       roleBadge.textContent = formatStatusLabel(user.role);
       roleBadge.className = `role-badge role-${user.role}`;
     }
+    if (headerUserName) headerUserName.textContent = user.name;
+    if (headerRoleBadge) {
+      headerRoleBadge.textContent = formatStatusLabel(user.role);
+      headerRoleBadge.className = `role-badge role-${user.role}`;
+    }
+    if (lpSignInBtn) lpSignInBtn.textContent = `${user.name} (${formatStatusLabel(user.role)})`;
     if (btnSignIn) btnSignIn.textContent = 'Switch account';
     if (btnRegister) btnRegister.style.display = 'none';
     if (btnLogout) btnLogout.style.display = 'inline-block';
@@ -569,6 +583,12 @@ function updateAuthUI() {
       roleBadge.textContent = 'Guest';
       roleBadge.className = 'role-badge role-driver';
     }
+    if (headerUserName) headerUserName.textContent = 'Sign in';
+    if (headerRoleBadge) {
+      headerRoleBadge.textContent = 'Guest';
+      headerRoleBadge.className = 'role-badge role-driver';
+    }
+    if (lpSignInBtn) lpSignInBtn.textContent = 'Sign In';
     if (btnSignIn) btnSignIn.textContent = 'Sign in';
     if (btnRegister) btnRegister.style.display = 'inline-block';
     if (btnLogout) btnLogout.style.display = 'none';
@@ -579,9 +599,12 @@ function updateAuthUI() {
 
 function handleLogout() {
   localStorage.removeItem('ce_token');
+  localStorage.removeItem('ce_user_cache');
   localStorage.setItem('ce_logged_out', '1');
   state.authToken = null;
   state.currentUser = null;
+  state.driverProfile = null;
+  state.hostProfile = null;
   state.currentRole = 'driver';
   stopTelemetryLoop();
   updateAuthUI();
@@ -590,14 +613,104 @@ function handleLogout() {
   showToast('Signed out of ChargeEase EV', 'info');
 }
 
-// -------------------- Auth Modal Controls --------------------
-function openAuthModal(mode = 'signin') {
+function handleLandingAuthButtonClick() {
+  if (state.currentUser && state.authToken) {
+    openUserInfoModal();
+  } else {
+    openAuthPage('login', 'driver');
+  }
+}
+
+// -------------------- Auth Modal & Signed-In User Info Modal --------------------
+function openAuthModal(mode = 'signin', forceSwitch = false) {
+  if (!forceSwitch && state.currentUser && state.authToken) {
+    openUserInfoModal();
+    return;
+  }
   const modal = getEl('auth-modal');
   if (!modal) return;
   modal.classList.add('open', 'active');
   if (mode === 'register-driver') setAuthTab('reg-driver');
   else if (mode === 'register-host') setAuthTab('reg-host');
   else setAuthTab('login');
+}
+
+async function openUserInfoModal() {
+  const modal = getEl('user-info-modal');
+  const body = getEl('user-info-modal-body');
+  if (!modal || !body) return;
+
+  modal.classList.add('open', 'active');
+
+  if (!state.currentUser) {
+    body.innerHTML = `<div style="text-align:center; padding:16px;">Not currently signed in. <button class="btn-bolt" style="margin-top:12px; width:100%;" onclick="closeModal('user-info-modal'); openAuthModal('signin', true);">Sign In</button></div>`;
+    return;
+  }
+
+  let u = state.currentUser;
+  let veh = state.activeVehicle;
+  let hp = state.hostProfile;
+
+  // Refresh latest details cleanly from backend
+  try {
+    const me = await apiFetch('/auth/me');
+    if (me && me.user) {
+      u = me.user;
+      state.currentUser = u;
+      state.activeVehicle = me.vehicle || veh;
+      state.hostProfile = me.hostProfile || hp;
+      veh = state.activeVehicle;
+      hp = state.hostProfile;
+      updateAuthUI();
+    }
+  } catch (_) {}
+
+  const roleStr = formatStatusLabel(u.role);
+  const balStr = formatInr(u.wallet_balance ?? u.walletBalance ?? 0);
+
+  const roleDetailsHtml = u.role === 'host'
+    ? `
+      <div style="padding:14px; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:var(--radius-md); margin-bottom:16px;">
+        <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:var(--text-muted); margin-bottom:6px;">Charger Host Details</div>
+        <div style="font-size:13px; color:var(--text-primary); font-weight:600;">${escapeHtml(hp?.address || 'Site address on file')}</div>
+        <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">${escapeHtml(hp?.city || 'Delhi NCR')} ${escapeHtml(hp?.pincode || '')} | UPI: <strong>${escapeHtml(hp?.upi_id || 'Configured')}</strong></div>
+        <div style="font-size:12px; color:var(--accent-green); margin-top:4px;">KYC Status: ${escapeHtml(formatStatusLabel(hp?.verification_status || 'verified'))}</div>
+      </div>`
+    : `
+      <div style="padding:14px; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:var(--radius-md); margin-bottom:16px;">
+        <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:var(--text-muted); margin-bottom:6px;">Primary EV Details</div>
+        <div style="font-size:14px; color:var(--text-primary); font-weight:600;">${escapeHtml(veh ? `${veh.manufacturer} ${veh.model}` : 'No vehicle registered yet')}</div>
+        <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">${veh ? `${veh.battery_capacity_kwh} kWh Pack | ${escapeHtml(veh.connector_type)} | ${escapeHtml(veh.registration_no || '')}` : 'Add your EV in Garage settings'}</div>
+      </div>`;
+
+  body.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; padding-bottom:14px; border-bottom:1px solid var(--border-color);">
+      <div>
+        <div style="font-size:20px; font-weight:700; color:var(--text-primary);">${escapeHtml(u.name)}</div>
+        <div style="font-size:13px; color:var(--text-secondary);">${escapeHtml(u.email)}</div>
+      </div>
+      <span class="role-badge role-${escapeHtml(u.role)}" style="font-size:12px; padding:4px 10px;">${escapeHtml(roleStr)}</span>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
+      <div style="padding:12px; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:var(--radius-md);">
+        <div style="font-size:11px; color:var(--text-muted);">Phone number</div>
+        <div class="tabular" style="font-size:14px; font-weight:600; color:var(--text-primary); margin-top:2px;">${escapeHtml(u.phone || 'Not provided')}</div>
+      </div>
+      <div style="padding:12px; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:var(--radius-md);">
+        <div style="font-size:11px; color:var(--text-muted);">Wallet balance</div>
+        <div class="tabular" style="font-size:16px; font-weight:700; color:var(--accent-green); margin-top:2px;">${escapeHtml(balStr)}</div>
+      </div>
+    </div>
+
+    ${roleDetailsHtml}
+
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button type="button" class="btn-bolt" style="flex:1;" onclick="closeModal('user-info-modal'); enterAppWorkspace(); switchTab('${u.role === 'host' ? 'host-profile' : 'garage'}');">Edit Profile &amp; ${u.role === 'host' ? 'Site' : 'Garage'}</button>
+      <button type="button" class="btn-secondary" onclick="closeModal('user-info-modal'); openAuthModal('signin', true);">Switch Account</button>
+      <button type="button" class="btn-danger" onclick="closeModal('user-info-modal'); handleLogout();">Sign Out</button>
+    </div>
+  `;
 }
 
 function closeModal(id) {
@@ -645,7 +758,8 @@ async function handleFormLogin(e) {
     state.authToken = res.token;
     closeModal('auth-modal');
     await hydrateAuthenticatedSession();
-    showToast(`Welcome back, ${res.user.name}`, 'success');
+    openUserInfoModal();
+    showToast(`Signed in as ${res.user.name}`, 'success');
   } catch (err) {
     showToast(err.message, 'error');
   }
@@ -671,6 +785,7 @@ async function handleFormRegisterDriver(e) {
     state.authToken = res.token;
     closeModal('auth-modal');
     await hydrateAuthenticatedSession();
+    openUserInfoModal();
     showToast('Driver account registered successfully', 'success');
   } catch (err) {
     showToast(err.message, 'error');
@@ -697,7 +812,8 @@ async function handleFormRegisterHost(e) {
     state.authToken = res.token;
     closeModal('auth-modal');
     await hydrateAuthenticatedSession();
-    showToast('Host account created. Verification status: Pending', 'success');
+    openUserInfoModal();
+    showToast('Host account created and verified', 'success');
   } catch (err) {
     showToast(err.message, 'error');
   }
@@ -711,11 +827,10 @@ function navigateToRoleHome() {
 
 function openRoleProfile() {
   if (!state.currentUser) {
-    openAuthModal('signin');
+    openAuthModal('signin', true);
     return;
   }
-  if (state.currentRole === 'host') switchTab('host-profile');
-  else switchTab('garage');
+  openUserInfoModal();
 }
 
 function switchRoleExperience(role, fromHydration = false) {

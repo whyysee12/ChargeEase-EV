@@ -81,7 +81,73 @@ function authenticateUser(req) {
   const decoded = verifyToken(token);
   if (!decoded) return null;
 
-  const user = db.prepare('SELECT id, email, role, name, phone, wallet_balance, is_verified, is_suspended FROM users WHERE id = ?').get(decoded.userId);
+  let user = db.prepare('SELECT id, email, role, name, phone, wallet_balance, is_verified, is_suspended FROM users WHERE id = ?').get(decoded.userId);
+  if (!user && decoded.email) {
+    user = db.prepare('SELECT id, email, role, name, phone, wallet_balance, is_verified, is_suspended FROM users WHERE email = ?').get(String(decoded.email).toLowerCase().trim());
+  }
+
+  // Auto-rehydrate valid JWT users in fresh serverless instances (e.g. Vercel /tmp cold start)
+  if (!user && decoded.userId && decoded.email && decoded.role) {
+    try {
+      const safeRole = ['driver', 'host', 'admin'].includes(decoded.role) ? decoded.role : 'driver';
+      const defaultBal = typeof decoded.wallet_balance === 'number'
+        ? decoded.wallet_balance
+        : (safeRole === 'driver' ? 500.00 : 0.00);
+      db.prepare(`
+        INSERT OR IGNORE INTO users (id, email, password_hash, role, name, phone, wallet_balance, is_verified, is_suspended)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0)
+      `).run(
+        decoded.userId,
+        String(decoded.email).toLowerCase().trim(),
+        hashPassword('rehydrated-' + decoded.userId),
+        safeRole,
+        decoded.name || 'ChargeEase User',
+        decoded.phone || '+91 98000 00000',
+        defaultBal
+      );
+
+      if (safeRole === 'driver') {
+        db.prepare(`
+          INSERT OR IGNORE INTO driver_profiles (id, user_id, license_no, emergency_contact, safety_buffer_pct)
+          VALUES (?, ?, ?, ?, 20.0)
+        `).run('dp-' + decoded.userId, decoded.userId, 'DL-REHYD-01', decoded.phone || '');
+
+        if (decoded.vehicle) {
+          const v = decoded.vehicle;
+          db.prepare(`
+            INSERT OR IGNORE INTO vehicles (id, user_id, manufacturer, model, battery_capacity_kwh, connector_type, registration_no, current_soc, is_primary)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 50.0, 1)
+          `).run(
+            v.id || ('veh-' + decoded.userId),
+            decoded.userId,
+            v.manufacturer || 'Ola Electric',
+            v.model || 'Ola S1 Pro',
+            parseFloat(v.battery_capacity_kwh) || 4.0,
+            v.connector_type || '16A 3-Pin',
+            v.registration_no || 'DL 3S ET 1001'
+          );
+        }
+      } else if (safeRole === 'host') {
+        const hp = decoded.hostProfile || {};
+        db.prepare(`
+          INSERT OR IGNORE INTO host_profiles (id, user_id, address, city, pincode, upi_id, verification_status, rating)
+          VALUES (?, ?, ?, ?, ?, ?, 'verified', 5.0)
+        `).run(
+          'hp-' + decoded.userId,
+          decoded.userId,
+          hp.address || 'Verified Host Site',
+          hp.city || 'Delhi NCR',
+          hp.pincode || '201301',
+          hp.upi_id || ''
+        );
+      }
+
+      user = db.prepare('SELECT id, email, role, name, phone, wallet_balance, is_verified, is_suspended FROM users WHERE id = ?').get(decoded.userId);
+    } catch (_) {
+      // Non-fatal fallback
+    }
+  }
+
   if (!user || user.is_suspended) return null;
 
   return user;

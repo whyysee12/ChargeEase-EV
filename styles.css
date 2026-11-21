@@ -339,8 +339,10 @@ header.bolt-header {
 }
 
 .user-profile-btn {
-  width: 36px;
+  width: auto;
   height: 36px;
+  padding: 0 12px;
+  gap: 8px;
   border-radius: var(--radius-md);
   background: var(--bg-card);
   border: 1px solid var(--border-color);

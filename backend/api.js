@@ -134,7 +134,22 @@ async function handleApiRequest(req, res, pathname, queryParams) {
 
         db.exec('COMMIT;');
 
-        const token = signToken({ userId, email: email.toLowerCase().trim(), role: 'driver', name });
+        const token = signToken({
+          userId,
+          email: email.toLowerCase().trim(),
+          role: 'driver',
+          name: name.trim(),
+          phone: phone || '+91 98000 00000',
+          wallet_balance: 500.00,
+          vehicle: {
+            id: vehId,
+            manufacturer: manufacturer || 'Ola Electric',
+            model: model || 'Ola S1 Pro',
+            battery_capacity_kwh: parseFloat(batteryCapacity) || 4.0,
+            connector_type: connectorType || '16A 3-Pin',
+            registration_no: registrationNo || 'DL 3S ET 1001'
+          }
+        });
         return sendJson(res, 201, {
           success: true,
           message: 'Driver registration successful',
@@ -198,7 +213,20 @@ async function handleApiRequest(req, res, pathname, queryParams) {
 
         db.exec('COMMIT;');
 
-        const token = signToken({ userId, email: email.toLowerCase().trim(), role: 'host', name });
+        const token = signToken({
+          userId,
+          email: email.toLowerCase().trim(),
+          role: 'host',
+          name: name.trim(),
+          phone: phone || '+91 98000 00000',
+          wallet_balance: 0.00,
+          hostProfile: {
+            address: address.trim(),
+            city: city.trim(),
+            pincode: pincode || '201301',
+            upi_id: upiId || ''
+          }
+        });
         return sendJson(res, 201, {
           success: true,
           message: 'Host registration successful',
@@ -246,7 +274,9 @@ async function handleApiRequest(req, res, pathname, queryParams) {
         userId: userRow.id,
         email: userRow.email,
         role: userRow.role,
-        name: userRow.name
+        name: userRow.name,
+        phone: userRow.phone,
+        wallet_balance: userRow.wallet_balance
       });
 
       return sendJson(res, 200, {
