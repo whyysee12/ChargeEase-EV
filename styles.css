@@ -2491,10 +2491,199 @@ textarea.custom-input {
   .lp-bento-grid, .lp-roles-grid, .auth-role-picker, .auth-form-grid-2, .auth-form-grid-3 {
     grid-template-columns: 1fr;
   }
-  .lp-nav-actions .lp-btn-outline {
-    display: none;
-  }
   .lp-showcase-overlay {
     padding: 16px;
   }
+}
+
+/* =========================================================
+   Complete Dark Mode Theme Layer (`html[data-theme="dark"]`)
+   ========================================================= */
+:root[data-theme="dark"] {
+  --bg-primary: #0A0A0B;
+  --bg-secondary: #0F1012;
+  --bg-surface: #131417;
+  --bg-card: #17181C;
+  --bg-card-hover: #1D1F24;
+  --bg-elevated: #23262D;
+  --border-color: #25272E;
+  --border-strong: #353842;
+
+  --accent-primary: #F4F4F5;
+  --accent-primary-text: #09090B;
+  --accent-green: #10B981;
+  --accent-green-subtle: rgba(16, 185, 129, 0.14);
+  --accent-blue: #3B82F6;
+  --accent-blue-subtle: rgba(59, 130, 246, 0.14);
+  --accent-amber: #F59E0B;
+  --accent-amber-subtle: rgba(245, 158, 11, 0.14);
+  --accent-red: #EF4444;
+  --accent-red-subtle: rgba(239, 68, 68, 0.14);
+
+  --text-primary: #F4F4F5;
+  --text-secondary: #A1A1AA;
+  --text-muted: #71717A;
+
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow-floating: 0 12px 28px rgba(0, 0, 0, 0.55);
+  --shadow-modal: 0 20px 48px rgba(0, 0, 0, 0.72);
+}
+
+[data-theme="dark"] .landing-stage {
+  background: #0A0A0B;
+  color: #F4F4F5;
+}
+
+[data-theme="dark"] .lp-nav {
+  background: rgba(10, 10, 11, 0.92);
+  border-bottom-color: #25272E;
+}
+
+[data-theme="dark"] .lp-brand-title,
+[data-theme="dark"] .lp-headline,
+[data-theme="dark"] .lp-split-heading h2,
+[data-theme="dark"] .lp-bento-stat,
+[data-theme="dark"] .lp-bento-card h3,
+[data-theme="dark"] .lp-bento-foot strong,
+[data-theme="dark"] .lp-footer-actions button {
+  color: #F4F4F5;
+}
+
+[data-theme="dark"] .lp-nav-links a,
+[data-theme="dark"] .lp-headline-muted,
+[data-theme="dark"] .lp-subheadline,
+[data-theme="dark"] .lp-split-heading p,
+[data-theme="dark"] .lp-bento-card p,
+[data-theme="dark"] .lp-micro-strip,
+[data-theme="dark"] .lp-bento-meta,
+[data-theme="dark"] .lp-bento-foot,
+[data-theme="dark"] .lp-footer-inner {
+  color: #A1A1AA;
+}
+
+[data-theme="dark"] .lp-nav-links a:hover,
+[data-theme="dark"] .lp-btn-ghost:hover {
+  color: #FFFFFF;
+}
+
+[data-theme="dark"] .lp-btn-ghost {
+  color: #D4D4D8;
+}
+
+[data-theme="dark"] .lp-btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .lp-hero-badge,
+[data-theme="dark"] .lp-eyebrow-pill,
+[data-theme="dark"] .lp-bento-card {
+  background: #14161A;
+  border-color: #25272E;
+}
+
+[data-theme="dark"] .lp-bento-card.dark {
+  background: #0D0E12;
+  border-color: #2F333C;
+}
+
+[data-theme="dark"] .lp-bento-foot {
+  border-top-color: #25272E;
+}
+
+[data-theme="dark"] .lp-btn-solid {
+  background: #F4F4F5;
+  color: #09090B;
+  border-color: #F4F4F5;
+}
+
+[data-theme="dark"] .lp-btn-solid:hover {
+  background: #E4E4E7;
+}
+
+[data-theme="dark"] .lp-btn-outline {
+  background: #17181C;
+  color: #F4F4F5;
+  border-color: #353842;
+}
+
+[data-theme="dark"] .lp-btn-outline:hover {
+  border-color: #71717A;
+}
+
+[data-theme="dark"] .lp-footer {
+  background: #0F1012;
+  border-top-color: #25272E;
+}
+
+[data-theme="dark"] .auth-stage-main {
+  background: #0A0A0B;
+  color: #F4F4F5;
+}
+
+[data-theme="dark"] .auth-form-shell {
+  background: #14161A;
+  border-color: #25272E;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+}
+
+[data-theme="dark"] .auth-form-shell .field-label,
+[data-theme="dark"] .auth-subdivider {
+  color: #A1A1AA;
+  border-top-color: #25272E;
+}
+
+[data-theme="dark"] .auth-form-shell .custom-input,
+[data-theme="dark"] .auth-form-shell .custom-select,
+[data-theme="dark"] .auth-form-shell .filter-chip {
+  background: #1B1D22;
+  border-color: #2D3039;
+  color: #F4F4F5;
+}
+
+[data-theme="dark"] .auth-role-card {
+  background: #1B1D22;
+  border-color: #2D3039;
+  color: #F4F4F5;
+}
+
+[data-theme="dark"] .auth-role-card.active {
+  background: #F4F4F5;
+  border-color: #F4F4F5;
+  color: #09090B;
+}
+
+[data-theme="dark"] .auth-mode-tabs {
+  background: #1B1D22;
+}
+
+[data-theme="dark"] .auth-mode-btn {
+  color: #A1A1AA;
+}
+
+[data-theme="dark"] .auth-mode-btn.active {
+  background: #262932;
+  color: #FFFFFF;
+}
+
+[data-theme="dark"] .time-billing-warning {
+  color: #FDE68A;
+}
+
+[data-theme="dark"] .notif-badge {
+  color: #09090B;
+}
+
+[data-theme="dark"] .toast-item.success {
+  background: #10201A;
+  color: #6EE7B7;
+}
+
+[data-theme="dark"] .toast-item.error {
+  background: #231315;
+  color: #FCA5A5;
+}
+
+[data-theme="dark"] .toast-item.info {
+  background: #121B28;
+  color: #93C5FD;
 }

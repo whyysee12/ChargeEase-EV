@@ -246,14 +246,32 @@ function updateLandingEstimator() {
 function updateLandingWorkspaceButtons() {
   const navBtn = getEl('lp-nav-workspace-btn');
   const heroBtn = getEl('lp-hero-workspace-btn');
-  if (state.currentUser) {
-    const first = state.currentUser.name.split(' ')[0];
-    if (navBtn) navBtn.textContent = `Open ${first}'s App`;
-    if (heroBtn) heroBtn.textContent = `Continue as ${first} ->`;
-  } else {
-    if (navBtn) navBtn.textContent = 'Launch Workspace';
-    if (heroBtn) heroBtn.textContent = 'Enter Demo App ->';
+  if (navBtn) navBtn.textContent = 'Open App';
+  if (heroBtn) heroBtn.textContent = 'Open App ->';
+}
+
+function applyThemeMode(theme) {
+  const activeTheme = theme === 'light' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', activeTheme);
+  localStorage.setItem('ce_theme', activeTheme);
+
+  const label = activeTheme === 'dark' ? 'Light Mode' : 'Dark Mode';
+  if (getEl('lp-theme-toggle-btn')) getEl('lp-theme-toggle-btn').textContent = label;
+  if (getEl('app-theme-toggle-btn')) getEl('app-theme-toggle-btn').textContent = label;
+
+  state.mapLightMode = activeTheme === 'light';
+  const wrapper = document.querySelector('.map-viewport-wrapper');
+  if (wrapper) {
+    wrapper.classList.toggle('map-dark-tiles', !state.mapLightMode);
   }
+}
+
+function toggleThemeMode() {
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = current === 'dark' ? 'light' : 'dark';
+  applyThemeMode(next);
+  renderStationMarkers();
+  showToast(next === 'dark' ? 'Switched to Dark Mode' : 'Switched to Light Mode', 'info');
 }
 
 function selectAuthPageRole(role) {
@@ -457,6 +475,7 @@ function quickVerifyDemoOnAuthPage(role) {
 
 // -------------------- Initialization & Authentication --------------------
 document.addEventListener('DOMContentLoaded', async () => {
+  applyThemeMode(localStorage.getItem('ce_theme') || 'dark');
   bindOverlayCloseHandlers();
   updateLandingEstimator();
 
@@ -1258,17 +1277,25 @@ function renderStationMarkers() {
     const addressPreview = st.isAddressUnlocked ? st.address : (st.approximateAddress || st.address);
     const tariffText = st.billingType === 'time' ? `${formatInr(st.timeRatePerHour, 0)}/hr` : `${formatInr(st.pricePerKwh, 0)}/kWh`;
 
+    const isDark = (document.documentElement.getAttribute('data-theme') || 'dark') === 'dark';
+    const popText = isDark ? '#F4F4F5' : '#111214';
+    const popSub = isDark ? '#A1A1AA' : '#525660';
+    const popBtnBg = isDark ? '#1E2026' : '#FAF9F5';
+    const popBtnBorder = isDark ? '#353842' : '#D5D2C8';
+    const popPrimaryBg = isDark ? '#10B981' : '#111214';
+    const popPrimaryFg = isDark ? '#091410' : '#FFFFFF';
+
     const popupHtml = `
-      <div style="min-width:210px; font-family:Inter,sans-serif; color:#111214;">
+      <div style="min-width:210px; font-family:Inter,sans-serif; color:${popText};">
         <div style="font-size:13px; font-weight:700; margin-bottom:2px;">${escapeHtml(st.name)}</div>
-        <div style="font-size:11px; color:#525660; margin-bottom:6px;">${escapeHtml(addressPreview)}</div>
+        <div style="font-size:11px; color:${popSub}; margin-bottom:6px;">${escapeHtml(addressPreview)}</div>
         <div style="font-size:12px; margin-bottom:8px;">
           <span>${escapeHtml(st.connectorType)} | ${st.powerKw} kW</span><br>
           <strong>${tariffText}</strong> | <span style="color:${color}; font-weight:600;">${escapeHtml(formatStatusLabel(st.status))}</span>
         </div>
         <div style="display:flex; gap:6px;">
-          <button onclick="openStationDetailModal('${escapeHtml(st.id)}')" style="flex:1; padding:5px 8px; border-radius:6px; border:1px solid #D5D2C8; background:#FAF9F5; color:#111214; cursor:pointer; font-size:11px; font-weight:600;">Details</button>
-          <button onclick="openBookingModal('${escapeHtml(st.id)}')" style="flex:1; padding:5px 8px; border-radius:6px; border:none; background:#111214; color:#FFFFFF; font-weight:600; cursor:pointer; font-size:11px;">Reserve</button>
+          <button onclick="openStationDetailModal('${escapeHtml(st.id)}')" style="flex:1; padding:5px 8px; border-radius:6px; border:1px solid ${popBtnBorder}; background:${popBtnBg}; color:${popText}; cursor:pointer; font-size:11px; font-weight:600;">Details</button>
+          <button onclick="openBookingModal('${escapeHtml(st.id)}')" style="flex:1; padding:5px 8px; border-radius:6px; border:none; background:${popPrimaryBg}; color:${popPrimaryFg}; font-weight:600; cursor:pointer; font-size:11px;">Reserve</button>
         </div>
       </div>`;
 
