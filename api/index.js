@@ -16,7 +16,7 @@ module.exports = async (req, res) => {
   Object.entries(SECURITY_HEADERS).forEach(([k, v]) => res.setHeader(k, v));
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-auth-token');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-auth-token, x-chargeease-vault, x-chargeease-chargers');
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204);

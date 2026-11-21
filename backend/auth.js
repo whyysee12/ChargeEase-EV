@@ -77,9 +77,17 @@ function rehydrateUserFromToken(tokenOrDecoded) {
   if (!decoded || !decoded.userId || !decoded.email || !decoded.role) return null;
 
   const cleanEmail = String(decoded.email).toLowerCase().trim();
-  let user = db.prepare('SELECT id, email, role, name, phone, wallet_balance, is_verified, is_suspended FROM users WHERE id = ?').get(decoded.userId);
+  const hasValidHash = typeof decoded.password_hash === 'string' && decoded.password_hash.includes(':');
+  let user = db.prepare('SELECT id, email, role, name, phone, wallet_balance, is_verified, is_suspended, password_hash FROM users WHERE id = ?').get(decoded.userId);
   if (!user) {
-    user = db.prepare('SELECT id, email, role, name, phone, wallet_balance, is_verified, is_suspended FROM users WHERE email = ?').get(cleanEmail);
+    user = db.prepare('SELECT id, email, role, name, phone, wallet_balance, is_verified, is_suspended, password_hash FROM users WHERE email = ?').get(cleanEmail);
+  }
+
+  if (user && hasValidHash && user.password_hash !== decoded.password_hash) {
+    try {
+      db.prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?").run(decoded.password_hash, user.id);
+      user.password_hash = decoded.password_hash;
+    } catch (_) {}
   }
 
   if (!user) {
@@ -88,7 +96,7 @@ function rehydrateUserFromToken(tokenOrDecoded) {
       const defaultBal = typeof decoded.wallet_balance === 'number'
         ? decoded.wallet_balance
         : (safeRole === 'driver' ? 500.00 : 0.00);
-      const storedPassHash = (typeof decoded.password_hash === 'string' && decoded.password_hash.includes(':'))
+      const storedPassHash = hasValidHash
         ? decoded.password_hash
         : hashPassword('rehydrated-' + decoded.userId);
 
@@ -141,13 +149,96 @@ function rehydrateUserFromToken(tokenOrDecoded) {
         );
       }
 
-      user = db.prepare('SELECT id, email, role, name, phone, wallet_balance, is_verified, is_suspended FROM users WHERE id = ? OR email = ?').get(decoded.userId, cleanEmail);
+      user = db.prepare('SELECT id, email, role, name, phone, wallet_balance, is_verified, is_suspended, password_hash FROM users WHERE id = ? OR email = ?').get(decoded.userId, cleanEmail);
     } catch (_) {
       // Non-fatal fallback
     }
   }
 
   return user || null;
+}
+
+function rehydrateChargerFromToken(tokenOrDecoded) {
+  const decoded = typeof tokenOrDecoded === 'string' ? verifyToken(tokenOrDecoded) : tokenOrDecoded;
+  if (!decoded || decoded.kind !== 'charger' || !decoded.charger || !decoded.charger.id) return null;
+
+  const c = decoded.charger;
+  const hostObj = decoded.host || {};
+  const hostId = c.host_id || hostObj.userId || 'usr-host-01';
+
+  try {
+    if (hostObj.userId && hostObj.email) {
+      rehydrateUserFromToken(hostObj);
+    }
+    db.prepare(`
+      INSERT OR IGNORE INTO host_profiles (id, user_id, address, city, pincode, upi_id, verification_status, rating)
+      VALUES (?, ?, ?, ?, '201301', '', 'verified', 5.0)
+    `).run('hp-' + hostId, hostId, c.address || 'Verified P2P Host Site', c.city || 'Delhi NCR');
+
+    db.prepare(`
+      INSERT OR IGNORE INTO chargers (
+        id, host_id, code, name, description, address, city, lat, lng,
+        connector_type, power_kw, billing_type, price_per_kwh, time_rate_per_hour,
+        status, operating_hours, access_instructions, is_power_on, verification_status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      c.id,
+      hostId,
+      c.code || ('CE-DEL-' + Math.floor(200 + Math.random() * 800)),
+      c.name || 'Community EV Charger',
+      c.description || '',
+      c.address || 'Nearby Host Driveway',
+      c.city || 'Delhi NCR',
+      parseFloat(c.lat) || 28.4638,
+      parseFloat(c.lng) || 77.4948,
+      c.connector_type || 'Type 2 AC',
+      parseFloat(c.power_kw) || 7.4,
+      c.billing_type === 'time' ? 'time' : 'metered',
+      parseFloat(c.price_per_kwh) || 12.00,
+      parseFloat(c.time_rate_per_hour) || 20.00,
+      c.status || 'available',
+      c.operating_hours || '24/7 Access',
+      c.access_instructions || 'Host instructions provided after booking.',
+      c.is_power_on === 0 ? 0 : 1,
+      c.verification_status === 'rejected' ? 'rejected' : 'approved'
+    );
+    return db.prepare('SELECT * FROM chargers WHERE id = ?').get(c.id);
+  } catch (_) {
+    return null;
+  }
+}
+
+function parseTokenListHeader(val) {
+  if (!val) return [];
+  if (Array.isArray(val)) return val.filter(Boolean);
+  const str = String(val).trim();
+  if (!str) return [];
+  if (str.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(str);
+      return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+    } catch (_) {}
+  }
+  return str.split(',').map(s => s.trim()).filter(Boolean);
+}
+
+function rehydrateVaultFromRequest(req, body = null) {
+  const userTokens = [
+    ...parseTokenListHeader(req.headers['x-chargeease-vault']),
+    ...(body?.vaultToken ? [body.vaultToken] : []),
+    ...parseTokenListHeader(body?.vaultTokens)
+  ];
+  for (const tok of userTokens) {
+    rehydrateUserFromToken(tok);
+  }
+
+  const chargerTokens = [
+    ...parseTokenListHeader(req.headers['x-chargeease-chargers']),
+    ...parseTokenListHeader(body?.chargerTokens)
+  ];
+  for (const tok of chargerTokens) {
+    rehydrateChargerFromToken(tok);
+  }
 }
 
 // Authenticate request and attach user record
@@ -178,6 +269,8 @@ module.exports = {
   signToken,
   verifyToken,
   rehydrateUserFromToken,
+  rehydrateChargerFromToken,
+  rehydrateVaultFromRequest,
   authenticateUser,
   checkRole,
   hashPassword,

@@ -115,6 +115,10 @@ async function apiFetch(path, options = {}) {
   if (state.authToken) {
     headers['Authorization'] = `Bearer ${state.authToken}`;
   }
+  const vaultHdr = getAccountVaultTokensHeader();
+  if (vaultHdr) headers['x-chargeease-vault'] = vaultHdr;
+  const chargersHdr = getCustomChargerTokensHeader();
+  if (chargersHdr) headers['x-chargeease-chargers'] = chargersHdr;
 
   const res = await fetch(`${API_BASE}${path}`, {
     method: options.method || 'GET',
@@ -176,6 +180,11 @@ function openAuthPage(mode = 'signup', role = 'driver') {
   clearAuthPageStatus();
   selectAuthPageRole(role);
   selectAuthPageMode(mode);
+  if (mode === 'login') {
+    const emailEl = getEl('ap-login-email');
+    const saved = localStorage.getItem('ce_last_email') || '';
+    if (emailEl && !emailEl.value && saved) emailEl.value = saved;
+  }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -383,10 +392,12 @@ async function verifyAndEnterWithToken(token, expectedRoleLabel) {
 function saveAccountVaultToken(email, token) {
   if (!email || !token) return;
   try {
+    const clean = String(email).toLowerCase().trim();
     const raw = localStorage.getItem('ce_account_vault');
     const vault = raw ? JSON.parse(raw) : {};
-    vault[String(email).toLowerCase().trim()] = token;
+    vault[clean] = token;
     localStorage.setItem('ce_account_vault', JSON.stringify(vault));
+    localStorage.setItem('ce_last_email', clean);
   } catch (_) {}
 }
 
@@ -398,6 +409,37 @@ function getAccountVaultToken(email) {
     return vault[String(email).toLowerCase().trim()] || null;
   } catch (_) {
     return null;
+  }
+}
+
+function getAccountVaultTokensHeader() {
+  try {
+    const raw = localStorage.getItem('ce_account_vault');
+    const vault = raw ? JSON.parse(raw) : {};
+    const tokens = Object.values(vault).filter(Boolean).slice(-4);
+    return tokens.length ? JSON.stringify(tokens) : '';
+  } catch (_) {
+    return '';
+  }
+}
+
+function saveCustomChargerToken(token) {
+  if (!token) return;
+  try {
+    const raw = localStorage.getItem('ce_custom_chargers');
+    const list = raw ? JSON.parse(raw) : [];
+    const next = [token, ...list.filter(t => t !== token)].slice(0, 6);
+    localStorage.setItem('ce_custom_chargers', JSON.stringify(next));
+  } catch (_) {}
+}
+
+function getCustomChargerTokensHeader() {
+  try {
+    const raw = localStorage.getItem('ce_custom_chargers');
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) && list.length ? JSON.stringify(list.slice(0, 6)) : '';
+  } catch (_) {
+    return '';
   }
 }
 
@@ -629,9 +671,12 @@ function updateAuthUI() {
 }
 
 function handleLogout() {
+  const lastEmail = state.currentUser?.email || localStorage.getItem('ce_last_email') || '';
+  const lastRole = state.currentUser?.role || state.currentRole || 'driver';
   localStorage.removeItem('ce_token');
   localStorage.removeItem('ce_user_cache');
   localStorage.setItem('ce_logged_out', '1');
+  if (lastEmail) localStorage.setItem('ce_last_email', lastEmail);
   state.authToken = null;
   state.currentUser = null;
   state.driverProfile = null;
@@ -640,7 +685,11 @@ function handleLogout() {
   stopTelemetryLoop();
   updateAuthUI();
   updateLandingWorkspaceButtons();
-  openAuthPage('login', 'driver');
+  openAuthPage('login', lastRole === 'host' ? 'host' : 'driver');
+  if (getEl('ap-login-email')) getEl('ap-login-email').value = lastEmail;
+  if (getEl('ap-login-password')) getEl('ap-login-password').value = '';
+  if (getEl('login-email')) getEl('login-email').value = lastEmail;
+  if (getEl('login-password')) getEl('login-password').value = '';
   showToast('Signed out of ChargeEase EV', 'info');
 }
 
@@ -869,7 +918,9 @@ function openRoleProfile() {
 
 function switchRoleExperience(role, fromHydration = false) {
   const targetRole = role === 'host' ? 'host' : 'driver';
-  if (!fromHydration && (!state.currentUser || state.currentUser.role !== targetRole)) {
+  const curEmail = (state.currentUser?.email || '').toLowerCase();
+  const isDemoAccount = curEmail === 'driver@chargeease.com' || curEmail === 'host@chargeease.com';
+  if (!fromHydration && (!state.currentUser || (isDemoAccount && state.currentUser.role !== targetRole))) {
     switchDemoAccount(targetRole);
     return;
   }
@@ -2604,6 +2655,11 @@ async function toggleHostChargerPower(chargerId) {
 }
 
 function openAddChargerModal() {
+  if (!state.authToken) {
+    openAuthModal('signin');
+    showToast('Please sign in to list your charger nearby', 'info');
+    return;
+  }
   const m = getEl('add-charger-modal');
   if (m) m.classList.add('open', 'active');
   onNewChargerTypeChange(getEl('new-charger-type')?.value || 'Type 2 AC');
@@ -2635,14 +2691,18 @@ async function handleOnboardCharger(e) {
   const tariff = parseFloat(getEl('new-charger-tariff')?.value || '18');
   const isTime = typeVal.includes('16A');
   const powerKw = typeVal.includes('CCS') ? 25.0 : (isTime ? 3.3 : 7.4);
+  const nearLat = Number(((state.userLocation?.lat || 28.4626) + 0.0012).toFixed(6));
+  const nearLng = Number(((state.userLocation?.lng || 77.4935) + 0.0012).toFixed(6));
 
   try {
-    await apiFetch('/host/chargers', {
+    const res = await apiFetch('/host/chargers', {
       method: 'POST',
       body: {
         name: getEl('new-charger-title')?.value.trim(),
         address: getEl('new-charger-address')?.value.trim(),
-        city: 'Greater Noida',
+        city: state.userLocation?.locality || 'Delhi NCR',
+        lat: nearLat,
+        lng: nearLng,
         connectorType: typeVal,
         powerKw,
         billingType: isTime ? 'time' : 'metered',
@@ -2650,10 +2710,17 @@ async function handleOnboardCharger(e) {
         timeRatePerHour: isTime ? tariff : 0
       }
     });
+    if (res.chargerToken) {
+      saveCustomChargerToken(res.chargerToken);
+    }
     closeModal('add-charger-modal');
     e.target.reset();
-    showToast('Charger onboarded (Admin verification pending)', 'success');
-    loadHostDashboard();
+    showToast('Charger listed nearby and published to live network!', 'success');
+    await Promise.all([
+      loadStationsFromApi(),
+      state.currentRole === 'host' ? loadHostDashboard() : Promise.resolve(),
+      state.currentTab === 'range-matcher' ? updateRangeCalc() : Promise.resolve()
+    ]);
   } catch (err) {
     showToast(err.message, 'error');
   }

@@ -443,11 +443,11 @@
             </div>
             <div style="margin-bottom:12px;">
               <label for="ap-login-email" class="field-label">Registered email address</label>
-              <input type="email" id="ap-login-email" class="custom-input" required value="driver@chargeease.com" aria-label="Registered email address">
+              <input type="email" id="ap-login-email" class="custom-input" required placeholder="name@example.com" autocomplete="email" aria-label="Registered email address">
             </div>
             <div style="margin-bottom:16px;">
               <label for="ap-login-password" class="field-label">Password</label>
-              <input type="password" id="ap-login-password" class="custom-input" required value="Driver@123" aria-label="Password">
+              <input type="password" id="ap-login-password" class="custom-input" required placeholder="Enter your password" autocomplete="current-password" aria-label="Password">
             </div>
 
             <button type="submit" class="btn-bolt" style="width:100%; height:44px; font-size:14px; margin-bottom:16px;">Authenticate &amp; Verify Role with Backend</button>
@@ -716,9 +716,12 @@
                 <option value="Delhi NCR" selected>Delhi NCR (Greater Noida Corridor)</option>
               </select>
             </div>
-            <div class="search-input-box">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input type="text" id="station-search-input" placeholder="Search sector, host, or charger code" oninput="handleSearch(this.value)" aria-label="Search chargers by sector, host, or charger code">
+            <div style="display:flex; gap:8px; align-items:center;">
+              <div class="search-input-box" style="flex:1;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="station-search-input" placeholder="Search sector, host, or charger code" oninput="handleSearch(this.value)" aria-label="Search chargers by sector, host, or charger code">
+              </div>
+              <button type="button" class="btn-secondary btn-sm" onclick="openAddChargerModal()" style="white-space:nowrap; height:var(--input-height); padding:0 12px; font-size:12px;" title="List a charger near your location">+ List Charger</button>
             </div>
           </div>
 
@@ -1288,11 +1291,11 @@
         <form id="auth-form-login" onsubmit="handleFormLogin(event)">
           <div style="margin-bottom:12px;">
             <label for="login-email" class="field-label">Email address</label>
-            <input type="email" id="login-email" class="custom-input" required value="driver@chargeease.com" aria-label="Sign in email address">
+            <input type="email" id="login-email" class="custom-input" required placeholder="name@example.com" autocomplete="email" aria-label="Sign in email address">
           </div>
           <div style="margin-bottom:16px;">
             <label for="login-password" class="field-label">Password</label>
-            <input type="password" id="login-password" class="custom-input" required value="Driver@123" aria-label="Sign in password">
+            <input type="password" id="login-password" class="custom-input" required placeholder="Enter your password" autocomplete="current-password" aria-label="Sign in password">
           </div>
           <button type="submit" class="btn-bolt" style="width:100%; margin-bottom:14px;">Sign in</button>
 
