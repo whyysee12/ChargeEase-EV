@@ -142,7 +142,7 @@ function initSchema() {
       start_time TEXT NOT NULL,
       end_time TEXT NOT NULL,
       duration_mins INTEGER NOT NULL,
-      status TEXT DEFAULT 'confirmed' CHECK(status IN ('pending', 'confirmed', 'rejected', 'cancelled', 'active', 'completed', 'expired')),
+      status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'confirmed', 'rejected', 'cancelled', 'active', 'completed', 'expired')),
       billing_type TEXT NOT NULL,
       estimated_kwh REAL,
       base_amount REAL NOT NULL,
@@ -152,6 +152,12 @@ function initSchema() {
       total_amount REAL NOT NULL,
       host_payout REAL NOT NULL,
       payment_status TEXT DEFAULT 'paid' CHECK(payment_status IN ('pending', 'paid', 'refunded')),
+      driver_contact_consent INTEGER DEFAULT 0,
+      host_contact_consent INTEGER DEFAULT 0,
+      pending_expires_at TEXT,
+      accepted_at TEXT,
+      rejected_at TEXT,
+      refunded_at TEXT,
       cancellation_reason TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (driver_id) REFERENCES users(id),
@@ -208,7 +214,28 @@ function initSchema() {
       type TEXT DEFAULT 'info' CHECK(type IN ('info', 'booking', 'session', 'payment', 'host', 'system')),
       is_read INTEGER DEFAULT 0,
       link TEXT,
+      booking_id TEXT,
+      booking_code TEXT,
+      event_key TEXT,
+      action_route TEXT,
+      payload_json TEXT DEFAULT '{}',
+      push_status TEXT DEFAULT 'pending',
       created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS device_tokens (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      fcm_token TEXT UNIQUE NOT NULL,
+      platform TEXT DEFAULT 'android',
+      device_id TEXT,
+      device_name TEXT,
+      app_version TEXT,
+      is_active INTEGER DEFAULT 1,
+      last_seen_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
@@ -252,8 +279,37 @@ function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_chargers_city ON chargers(city);
     CREATE INDEX IF NOT EXISTS idx_bookings_driver ON bookings(driver_id);
     CREATE INDEX IF NOT EXISTS idx_bookings_host ON bookings(host_id);
+    CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status, charger_id, booking_date);
     CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read);
+    CREATE INDEX IF NOT EXISTS idx_device_tokens_user ON device_tokens(user_id, is_active);
   `);
+
+  runSafeMigrations();
+}
+
+function ensureColumn(tableName, columnName, columnDef) {
+  const cols = db.prepare(`PRAGMA table_info(${tableName})`).all();
+  if (!cols.some(c => c.name === columnName)) {
+    db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDef};`);
+  }
+}
+
+function runSafeMigrations() {
+  ensureColumn('bookings', 'driver_contact_consent', 'INTEGER DEFAULT 0');
+  ensureColumn('bookings', 'host_contact_consent', 'INTEGER DEFAULT 0');
+  ensureColumn('bookings', 'pending_expires_at', 'TEXT');
+  ensureColumn('bookings', 'accepted_at', 'TEXT');
+  ensureColumn('bookings', 'rejected_at', 'TEXT');
+  ensureColumn('bookings', 'refunded_at', 'TEXT');
+
+  ensureColumn('notifications', 'booking_id', 'TEXT');
+  ensureColumn('notifications', 'booking_code', 'TEXT');
+  ensureColumn('notifications', 'event_key', 'TEXT');
+  ensureColumn('notifications', 'action_route', 'TEXT');
+  ensureColumn('notifications', 'payload_json', "TEXT DEFAULT '{}'");
+  ensureColumn('notifications', 'push_status', "TEXT DEFAULT 'pending'");
+
+  db.exec('CREATE INDEX IF NOT EXISTS idx_notifications_event_key ON notifications(user_id, event_key);');
 }
 
 function seedDatabase() {

@@ -55,7 +55,9 @@ const state = {
   authPageMode: 'signup',
   currentStage: 'landing',
   driverProfile: null,
-  hostProfile: null
+  hostProfile: null,
+  highlightedBookingId: null,
+  pendingDeepLink: null
 };
 
 const HERO_SHOWCASES = [
@@ -158,7 +160,54 @@ function badgeClass(status) {
 function formatStatusLabel(status) {
   if (!status) return 'Unknown';
   const s = String(status).toLowerCase();
+  if (s === 'pending') return 'Pending';
   return s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, ' ');
+}
+
+function getOrCreateDeviceId() {
+  let id = localStorage.getItem('ce_device_id');
+  if (!id) {
+    id = 'dev-' + Date.now() + '-' + Math.floor(1000 + Math.random() * 9000);
+    localStorage.setItem('ce_device_id', id);
+  }
+  return id;
+}
+
+function hashToPositiveInt(str) {
+  let h = 0;
+  const s = String(str || Date.now());
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) - h) + s.charCodeAt(i);
+    h |= 0;
+  }
+  return Math.max(1001, Math.abs(h) % 2000000000);
+}
+
+function normalizePhoneForLinks(phone) {
+  const raw = String(phone || '').trim();
+  const digits = raw.replace(/[^\d+]/g, '');
+  const waDigits = digits.replace(/^\+/, '');
+  return { raw, tel: digits, wa: waDigits.length === 10 ? ('91' + waDigits) : waDigits };
+}
+
+async function copyPhoneNumber(phone) {
+  const num = String(phone || '').trim();
+  if (!num) return;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(num);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = num;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    showToast(`Copied ${num} to clipboard`, 'success');
+  } catch (_) {
+    showToast(`Phone: ${num}`, 'info');
+  }
 }
 
 // -------------------- Stage Management (Landing -> Auth -> Workspace) --------------------
@@ -638,6 +687,13 @@ async function hydrateAuthenticatedSession() {
   updateAuthUI();
   switchRoleExperience(state.currentRole, true);
   loadNotifications();
+  initAndroidPushNotifications(false);
+
+  if (state.pendingDeepLink) {
+    const dl = state.pendingDeepLink;
+    state.pendingDeepLink = null;
+    handleNotificationTap(dl);
+  }
 }
 
 async function switchDemoAccount(role, silent = false) {
@@ -725,6 +781,7 @@ function updateAuthUI() {
 function handleLogout() {
   const lastEmail = state.currentUser?.email || localStorage.getItem('ce_last_email') || '';
   const lastRole = state.currentUser?.role || state.currentRole || 'driver';
+  unregisterAndroidPushToken();
   localStorage.removeItem('ce_token');
   localStorage.removeItem('ce_user_cache');
   localStorage.setItem('ce_logged_out', '1');
@@ -1063,6 +1120,277 @@ function switchTab(tabId) {
   }
 }
 
+// -------------------- Native Android Push & Local Notifications (Capacitor 8) --------------------
+const ANDROID_BOOKING_CHANNEL_ID = 'chargeease_booking_updates';
+let cePushListenersBound = false;
+const ceDeliveredPushKeys = new Set();
+
+function getCapacitorPlugins() {
+  const plugins = window.Capacitor?.Plugins || {};
+  return {
+    isNative: window.Capacitor?.isNativePlatform?.() === true,
+    platform: window.Capacitor?.getPlatform?.() || 'web',
+    PushNotifications: plugins.PushNotifications || null,
+    LocalNotifications: plugins.LocalNotifications || null
+  };
+}
+
+function updatePushStatusBanner(stateText, showEnableBtn = false) {
+  const txtEl = getEl('push-pref-status-text');
+  const btnEl = getEl('push-enable-btn');
+  if (txtEl) txtEl.textContent = stateText;
+  if (btnEl) btnEl.style.display = showEnableBtn ? 'inline-flex' : 'none';
+}
+
+async function ensureBookingNotificationChannel() {
+  const { isNative, LocalNotifications, PushNotifications } = getCapacitorPlugins();
+  if (!isNative) return;
+  try {
+    if (LocalNotifications?.createChannel) {
+      await LocalNotifications.createChannel({
+        id: ANDROID_BOOKING_CHANNEL_ID,
+        name: 'ChargeEase Booking Updates',
+        description: 'Booking requests, host acceptances, cancellations and arrival updates',
+        importance: 4,
+        visibility: 0,
+        sound: 'default',
+        vibration: true
+      });
+    }
+    if (PushNotifications?.createChannel) {
+      await PushNotifications.createChannel({
+        id: ANDROID_BOOKING_CHANNEL_ID,
+        name: 'ChargeEase Booking Updates',
+        description: 'Booking requests, host acceptances, cancellations and arrival updates',
+        importance: 4,
+        visibility: 0,
+        sound: 'default',
+        vibration: true
+      });
+    }
+  } catch (err) {
+    console.warn('[Push Channel]', err?.message || err);
+  }
+}
+
+async function registerFcmTokenWithBackend(fcmToken) {
+  if (!fcmToken || !state.authToken) return;
+  const { platform } = getCapacitorPlugins();
+  try {
+    localStorage.setItem('ce_fcm_token', fcmToken);
+    const res = await apiFetch('/notifications/register-token', {
+      method: 'POST',
+      body: {
+        fcmToken,
+        platform,
+        deviceId: getOrCreateDeviceId(),
+        deviceName: navigator.userAgent?.slice(0, 80) || 'Android Device',
+        appVersion: localStorage.getItem('ce_build_version') || '5.3.0'
+      }
+    });
+    if (res.fcmStatus && !res.fcmStatus.configured) {
+      updatePushStatusBanner('Phone registered; configure Firebase Admin key on server for push alerts.', false);
+    } else {
+      updatePushStatusBanner('Android phone push notifications active.', false);
+    }
+  } catch (err) {
+    console.warn('[Push Register Backend]', err.message);
+  }
+}
+
+async function unregisterAndroidPushToken() {
+  const { isNative, PushNotifications } = getCapacitorPlugins();
+  const cachedToken = localStorage.getItem('ce_fcm_token');
+  if (state.authToken && cachedToken) {
+    try {
+      await apiFetch('/notifications/unregister-token', {
+        method: 'POST',
+        body: { fcmToken: cachedToken, deviceId: getOrCreateDeviceId() }
+      });
+    } catch (_) {}
+  }
+  if (isNative && PushNotifications?.unregister) {
+    try {
+      await PushNotifications.unregister();
+    } catch (_) {}
+  }
+}
+
+async function handleForegroundPushNotification(notification) {
+  const data = notification?.data || {};
+  const dedupeKey = data.eventKey || data.notificationId || notification?.id || `${data.type || 'BOOKING'}:${data.bookingId || Date.now()}`;
+  if (ceDeliveredPushKeys.has(dedupeKey)) return;
+  ceDeliveredPushKeys.add(dedupeKey);
+  if (ceDeliveredPushKeys.size > 60) {
+    const first = ceDeliveredPushKeys.values().next().value;
+    ceDeliveredPushKeys.delete(first);
+  }
+
+  const title = notification?.title || data.title || 'ChargeEase EV';
+  const body = notification?.body || data.body || 'You have a new booking update.';
+  const { isNative, LocalNotifications } = getCapacitorPlugins();
+
+  // Explicitly trigger an Android system notification while app is in foreground
+  if (isNative && LocalNotifications?.schedule) {
+    try {
+      await ensureBookingNotificationChannel();
+      const notifObj = {
+        id: hashToPositiveInt(dedupeKey),
+        title,
+        body,
+        channelId: ANDROID_BOOKING_CHANNEL_ID,
+        smallIcon: 'ic_stat_icon_config_sample',
+        extra: data
+      };
+      if (data.bookingReference) notifObj.group = data.bookingReference;
+      await LocalNotifications.schedule({ notifications: [notifObj] });
+    } catch (err) {
+      try {
+        await LocalNotifications.schedule({
+          notifications: [{ id: hashToPositiveInt(dedupeKey), title, body, channelId: ANDROID_BOOKING_CHANNEL_ID, extra: data }]
+        });
+      } catch (_) {}
+    }
+  }
+
+  // Also refresh booking and notification lists inside the UI
+  loadNotifications();
+  if (state.currentTab === 'driver-bookings') loadDriverBookings();
+  if (state.currentTab === 'driver-dash') loadDriverDashboard();
+  if (state.currentRole === 'host' || state.currentTab.startsWith('host-')) loadHostDashboard();
+}
+
+function handleNotificationTap(rawData = {}) {
+  const data = typeof rawData === 'string' ? (() => { try { return JSON.parse(rawData); } catch (_) { return {}; } })() : (rawData || {});
+  const targetRole = data.targetRole === 'host' ? 'host' : (data.route === 'host-bookings' ? 'host' : 'driver');
+  const targetTab = data.route || (targetRole === 'host' ? 'host-bookings' : 'driver-bookings');
+  const bookingId = data.bookingId || data.booking_id || data.bookingReference || data.booking_code || null;
+
+  if (!state.authToken || !state.currentUser) {
+    state.pendingDeepLink = data;
+    return;
+  }
+
+  state.highlightedBookingId = bookingId;
+  enterAppWorkspace();
+  state.currentRole = targetRole;
+  ['driver', 'host'].forEach(r => {
+    const btn = getEl(`mode-${r}-btn`);
+    if (btn) btn.classList.toggle('active', r === targetRole);
+  });
+  document.querySelectorAll('#app-tabs-bar .nav-tab-item').forEach(tabEl => {
+    const tabRole = tabEl.dataset.role;
+    const isSecondary = tabEl.dataset.secondary === 'true';
+    const hasMobileNav = tabEl.dataset.mobileNav === 'true';
+    tabEl.style.display = (tabRole === targetRole && (!isSecondary || hasMobileNav)) ? 'flex' : 'none';
+  });
+  switchTab(targetTab);
+
+  if (bookingId) {
+    setTimeout(() => {
+      const targetEl = getEl(`booking-card-${bookingId}`) || document.querySelector(`[data-booking-id="${bookingId}"]`);
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        targetEl.classList.add('booking-card-highlighted');
+      }
+    }, 550);
+  }
+}
+
+function bindNativePushListeners() {
+  if (cePushListenersBound) return;
+  const { isNative, PushNotifications, LocalNotifications } = getCapacitorPlugins();
+  if (!isNative || !PushNotifications) return;
+  cePushListenersBound = true;
+
+  PushNotifications.addListener('registration', (token) => {
+    if (token && token.value) {
+      registerFcmTokenWithBackend(token.value);
+    }
+  });
+
+  PushNotifications.addListener('registrationError', (err) => {
+    console.error('[FCM Registration Error]', err);
+    updatePushStatusBanner('Phone push setup incomplete — add Firebase google-services.json in Android app.', false);
+  });
+
+  PushNotifications.addListener('pushNotificationReceived', (notification) => {
+    handleForegroundPushNotification(notification);
+  });
+
+  PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+    handleNotificationTap(action?.notification?.data || {});
+  });
+
+  if (LocalNotifications?.addListener) {
+    LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
+      handleNotificationTap(action?.notification?.extra || {});
+    });
+  }
+}
+
+async function requestAndroidNotificationPermission(manualClick = false) {
+  const { isNative, PushNotifications, LocalNotifications } = getCapacitorPlugins();
+  if (!isNative || !PushNotifications) {
+    updatePushStatusBanner('Browser mode active. Native Android system alerts run inside the APK.', false);
+    return;
+  }
+
+  const storedState = localStorage.getItem('ce_push_perm_status');
+  if (!manualClick && storedState === 'denied') {
+    updatePushStatusBanner('Notifications disabled. Enable ChargeEase notifications in Android Settings.', true);
+    return;
+  }
+
+  try {
+    let perm = await PushNotifications.checkPermissions();
+    if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') {
+      if (manualClick) {
+        showToast('Please allow ChargeEase notifications for instant booking & arrival alerts.', 'info');
+      }
+      perm = await PushNotifications.requestPermissions();
+      if (LocalNotifications?.requestPermissions) {
+        await LocalNotifications.requestPermissions().catch(() => {});
+      }
+    }
+
+    localStorage.setItem('ce_push_perm_status', perm.receive || 'denied');
+    if (perm.receive === 'granted') {
+      await ensureBookingNotificationChannel();
+      await PushNotifications.register();
+      updatePushStatusBanner('Android push permission granted. Syncing device...', false);
+      if (manualClick) showToast('Android booking alerts enabled!', 'success');
+    } else {
+      updatePushStatusBanner('Permission denied. Enable alerts in Android Settings > Apps > ChargeEase EV > Notifications.', true);
+      if (manualClick) {
+        showToast('Notifications blocked in Android Settings. Go to Settings > Apps > ChargeEase EV > Notifications to enable.', 'info');
+      }
+    }
+  } catch (err) {
+    updatePushStatusBanner('Native push plugin missing in this APK build. Rebuild Android with Capacitor Push plugin.', false);
+  }
+}
+
+async function initAndroidPushNotifications(forcePrompt = false) {
+  const { isNative, PushNotifications } = getCapacitorPlugins();
+  if (!isNative) {
+    updatePushStatusBanner('Using in-app alerts in web browser (Android APK enables system-tray push).', false);
+    return;
+  }
+  if (!PushNotifications) {
+    updatePushStatusBanner('Install @capacitor/push-notifications & google-services.json in Android project for phone alerts.', false);
+    return;
+  }
+
+  bindNativePushListeners();
+  await ensureBookingNotificationChannel();
+  const cachedFcm = localStorage.getItem('ce_fcm_token');
+  if (cachedFcm && state.authToken) {
+    registerFcmTokenWithBackend(cachedFcm);
+  }
+  await requestAndroidNotificationPermission(forcePrompt);
+}
+
 // -------------------- Notifications --------------------
 async function loadNotifications() {
   if (!state.authToken) return;
@@ -1079,6 +1407,12 @@ async function loadNotifications() {
         countEl.style.display = 'none';
       }
     }
+    if (res.fcmStatus && !getCapacitorPlugins().isNative) {
+      const fcmMsg = res.fcmStatus.configured
+        ? `FCM active (${res.fcmStatus.activeRegisteredDevices} phone${res.fcmStatus.activeRegisteredDevices === 1 ? '' : 's'} registered)`
+        : 'Server waiting for Firebase Admin credentials (in-app alerts active)';
+      updatePushStatusBanner(fcmMsg, false);
+    }
     renderNotificationsList(items);
   } catch (_) {
     // Non-fatal
@@ -1094,13 +1428,16 @@ function renderNotificationsList(items) {
     return;
   }
 
-  container.innerHTML = items.map(n => `
-    <div class="notif-item ${n.is_read ? '' : 'unread'}" onclick="markSingleNotifRead('${escapeHtml(n.id)}')">
-      <div style="font-size:12px; font-weight:600; color:var(--text-primary); margin-bottom:2px;">${escapeHtml(n.title)}</div>
-      <div style="font-size:12px; color:var(--text-secondary); line-height:1.45;">${escapeHtml(n.message)}</div>
-      <div style="font-size:10px; color:var(--text-muted); margin-top:4px;">${escapeHtml(n.created_at || '')}</div>
-    </div>
-  `).join('');
+  container.innerHTML = items.map(n => {
+    const route = n.action_route || n.link || '';
+    const bId = n.booking_id || n.booking_code || '';
+    return `
+      <div class="notif-item ${n.is_read ? '' : 'unread'}" onclick="markSingleNotifRead('${escapeHtml(n.id)}', '${escapeHtml(route)}', '${escapeHtml(bId)}')">
+        <div style="font-size:12px; font-weight:600; color:var(--text-primary); margin-bottom:2px;">${escapeHtml(n.title)}</div>
+        <div style="font-size:12px; color:var(--text-secondary); line-height:1.45;">${escapeHtml(n.message)}</div>
+        <div style="font-size:10px; color:var(--text-muted); margin-top:4px;">${escapeHtml(n.created_at || '')}</div>
+      </div>`;
+  }).join('');
 }
 
 function toggleNotificationsPanel() {
@@ -1111,11 +1448,20 @@ function toggleNotificationsPanel() {
   if (opening) loadNotifications();
 }
 
-async function markSingleNotifRead(id) {
+async function markSingleNotifRead(id, route = '', bookingId = '') {
   try {
     await apiFetch(`/notifications/${id}/read`, { method: 'POST' });
     loadNotifications();
   } catch (_) {}
+  if (route) {
+    const drawer = getEl('notifications-drawer');
+    if (drawer) drawer.style.display = 'none';
+    handleNotificationTap({
+      route,
+      targetRole: route === 'host-bookings' ? 'host' : 'driver',
+      bookingId
+    });
+  }
 }
 
 async function markAllNotificationsRead() {
@@ -1245,7 +1591,8 @@ function renderDashActiveBooking(booking) {
   }
 
   const unlocked = ['confirmed', 'active', 'completed'].includes(booking.status);
-  const addr = unlocked ? booking.charger_address : (booking.approximate_address || 'Locality revealed upon confirmation');
+  const isPending = booking.status === 'pending';
+  const addr = unlocked ? booking.charger_address : (booking.approximate_address || 'Locality revealed upon host approval');
 
   el.innerHTML = `
     <div style="padding:14px; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:var(--radius-md);">
@@ -1256,7 +1603,7 @@ function renderDashActiveBooking(booking) {
         </div>
         <span class="status-badge ${badgeClass(booking.status)}">
           <span class="status-dot ${statusDotClass(booking.status)}"></span>
-          ${escapeHtml(formatStatusLabel(booking.status))}
+          ${escapeHtml(isPending ? 'PENDING HOST APPROVAL' : formatStatusLabel(booking.status))}
         </span>
       </div>
       <div style="display:flex; flex-wrap:wrap; gap:12px; font-size:12px; color:var(--text-secondary); margin-bottom:12px;">
@@ -1977,6 +2324,7 @@ function openBookingModal(chargerId) {
 
   const timeWarn = getEl('bm-time-disclaimer');
   if (timeWarn) timeWarn.style.display = station.billingType === 'time' ? 'block' : 'none';
+  if (getEl('bm-driver-consent')) getEl('bm-driver-consent').checked = false;
 
   recalculateModalBooking();
 }
@@ -2010,10 +2358,17 @@ async function executeCreateBooking() {
   const st = state.activeBookingStation;
   if (!st) return;
 
+  const btn = getEl('bm-submit-btn');
   const bookingDate = getEl('bm-date')?.value;
   const startTime = getEl('bm-time')?.value;
   const durationMins = parseInt(getEl('bm-duration')?.value || '60', 10);
+  const driverContactConsent = Boolean(getEl('bm-driver-consent')?.checked);
   const estimatedKwh = Math.max(2, Number((st.powerKw * 0.78 * (durationMins / 60)).toFixed(2)));
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Sending Request...';
+  }
 
   try {
     const res = await apiFetch('/bookings', {
@@ -2025,15 +2380,70 @@ async function executeCreateBooking() {
         startTime,
         durationMins,
         billingType: st.billingType,
-        estimatedKwh
+        estimatedKwh,
+        driverContactConsent
       }
     });
     closeModal('booking-modal');
-    showToast(`Booking ${res.booking.booking_code} requested (${formatStatusLabel(res.booking.status)})`, 'success');
+    state.highlightedBookingId = res.booking?.id || null;
+    showToast('Your booking request has been sent. Waiting for host approval.', 'info');
     loadNotifications();
     switchTab('driver-bookings');
   } catch (err) {
     showToast(err.message, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Send Booking Request';
+    }
+  }
+}
+
+function buildContactExchangeHtml(roleLabel, name, phone, consented, bookingId, ownConsentChecked, ownConsentLabel) {
+  const heading = roleLabel === 'host' ? 'HOST CONTACT DETAILS' : 'DRIVER CONTACT DETAILS';
+  const callLabel = roleLabel === 'host' ? 'Call Host' : 'Call Driver';
+  const partnerWord = roleLabel === 'host' ? 'Host' : 'Driver';
+  const phoneMeta = normalizePhoneForLinks(phone);
+
+  const phoneSection = (phone && consented)
+    ? `
+      <div style="font-size:13px; color:var(--text-primary); font-weight:600;">${escapeHtml(name)} &bull; <span class="tabular">${escapeHtml(phone)}</span></div>
+      <div class="contact-actions-row">
+        <a href="tel:${escapeHtml(phoneMeta.tel)}" class="contact-action-link contact-action-call">${callLabel}</a>
+        <button type="button" class="btn-secondary btn-sm" onclick="copyPhoneNumber('${escapeHtml(phone)}')">Copy Phone Number</button>
+        <a href="https://wa.me/${escapeHtml(phoneMeta.wa)}" target="_blank" rel="noopener noreferrer" class="contact-action-link contact-action-whatsapp">WhatsApp Contact</a>
+      </div>`
+    : `<div style="font-size:12px; color:var(--text-secondary);"><strong>${escapeHtml(name)}</strong> &bull; ${partnerWord} phone number hidden until ${partnerWord.toLowerCase()} consents to share contact details.</div>`;
+
+  return `
+    <div class="contact-exchange-card">
+      <div class="contact-exchange-title">${heading}</div>
+      ${phoneSection}
+      <label class="consent-toggle-row" style="margin-top:10px; margin-bottom:0; padding:8px 10px;">
+        <input type="checkbox" ${ownConsentChecked ? 'checked' : ''} onchange="updateBookingContactConsent('${escapeHtml(bookingId)}', this.checked, this)">
+        <span>${escapeHtml(ownConsentLabel)}</span>
+      </label>
+    </div>`;
+}
+
+async function updateBookingContactConsent(bookingId, consent, checkboxEl = null) {
+  if (checkboxEl) checkboxEl.disabled = true;
+  try {
+    const res = await apiFetch(`/bookings/${bookingId}/contact-consent`, {
+      method: 'PUT',
+      body: { consent: Boolean(consent) }
+    });
+    showToast(res.message || 'Contact preference updated', 'success');
+    if (state.currentRole === 'host' || state.currentTab.startsWith('host-')) {
+      loadHostDashboard();
+    } else {
+      loadDriverBookings();
+    }
+  } catch (err) {
+    if (checkboxEl) checkboxEl.checked = !consent;
+    showToast(err.message, 'error');
+  } finally {
+    if (checkboxEl) checkboxEl.disabled = false;
   }
 }
 
@@ -2062,8 +2472,24 @@ async function loadDriverBookings() {
 
     container.innerHTML = bookings.map(b => {
       const unlocked = ['confirmed', 'active', 'completed'].includes(b.status);
+      const isPending = b.status === 'pending';
+      const isHighlighted = state.highlightedBookingId && (state.highlightedBookingId === b.id || state.highlightedBookingId === b.booking_code);
+      const statusText = isPending ? 'PENDING HOST APPROVAL' : formatStatusLabel(b.status);
+
+      const contactHtml = unlocked
+        ? buildContactExchangeHtml(
+            'host',
+            b.host_name || 'Charger Host',
+            b.host_phone,
+            Boolean(b.host_contact_consent),
+            b.id,
+            Boolean(b.driver_contact_consent),
+            'Share my phone number with the host for this session'
+          )
+        : '';
+
       return `
-        <div style="padding:14px; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:var(--radius-md); margin-bottom:10px;">
+        <div id="booking-card-${escapeHtml(b.id)}" data-booking-id="${escapeHtml(b.id)}" class="${isHighlighted ? 'booking-card-highlighted' : ''}" style="padding:14px; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:var(--radius-md); margin-bottom:12px;">
           <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap; margin-bottom:8px;">
             <div>
               <div style="font-size:14px; font-weight:600; color:var(--text-primary);">${escapeHtml(b.charger_name)}</div>
@@ -2073,23 +2499,27 @@ async function loadDriverBookings() {
             </div>
             <span class="status-badge ${badgeClass(b.status)}">
               <span class="status-dot ${statusDotClass(b.status)}"></span>
-              ${escapeHtml(formatStatusLabel(b.status))}
+              ${escapeHtml(statusText)}
             </span>
           </div>
 
+          ${isPending ? `<div class="status-pending-approval">Your booking request has been sent. Waiting for host approval (slot reserved up to 30 mins).</div>` : ''}
+
           <div style="font-size:12px; color:var(--text-secondary); margin-bottom:10px;">
             Location: <strong style="color:var(--text-primary);">${escapeHtml(b.charger_address)}</strong>
-            ${unlocked && b.access_instructions ? `<br>Access instructions: ${escapeHtml(b.access_instructions)} (Host phone: ${escapeHtml(b.host_phone)})` : ''}
-            ${!unlocked ? ' <span style="color:var(--text-muted);">(Full driveway instructions unlock upon host confirmation)</span>' : ''}
+            ${unlocked && b.access_instructions ? `<br>Access instructions: ${escapeHtml(b.access_instructions)}` : ''}
+            ${!unlocked ? ' <span style="color:var(--text-muted);">(Full driveway instructions unlock upon host acceptance)</span>' : ''}
           </div>
+
+          ${contactHtml}
 
           <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; border-top:1px solid var(--border-color); padding-top:10px;">
             <div class="tabular" style="font-size:12px; color:var(--text-secondary);">
               Base ${formatInr(b.base_amount)} + Fee ${formatInr(b.platform_fee)} + GST ${formatInr(b.gst_fee)} = <strong style="color:var(--text-primary);">${formatInr(b.total_amount)}</strong>
             </div>
-            <div style="display:flex; gap:8px;">
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
               ${b.status === 'confirmed' ? `<button class="btn-bolt btn-sm" onclick="startSessionFromBooking('${escapeHtml(b.charger_id)}', '${escapeHtml(b.id)}')">Start session</button>` : ''}
-              ${['pending', 'confirmed'].includes(b.status) ? `<button class="btn-danger btn-sm" onclick="cancelBooking('${escapeHtml(b.id)}')">Cancel</button>` : ''}
+              ${['pending', 'confirmed'].includes(b.status) ? `<button class="btn-danger btn-sm" onclick="cancelBooking('${escapeHtml(b.id)}', this)">Cancel</button>` : ''}
               ${['confirmed', 'completed'].includes(b.status) ? `<button class="btn-secondary btn-sm" onclick="openDisputeModal('${escapeHtml(b.id)}', '${escapeHtml(b.booking_code)}')">Report issue</button>` : ''}
             </div>
           </div>
@@ -2100,14 +2530,23 @@ async function loadDriverBookings() {
   }
 }
 
-async function cancelBooking(bookingId) {
+async function cancelBooking(bookingId, btnEl = null) {
+  if (btnEl) {
+    btnEl.disabled = true;
+    btnEl.textContent = 'Cancelling...';
+  }
   try {
     await apiFetch(`/bookings/${bookingId}/cancel`, { method: 'POST' });
-    showToast('Booking cancelled', 'info');
+    showToast('Booking cancelled and refunded', 'info');
     loadDriverBookings();
     loadDriverDashboard();
+    loadNotifications();
   } catch (err) {
     showToast(err.message, 'error');
+    if (btnEl) {
+      btnEl.disabled = false;
+      btnEl.textContent = 'Cancel';
+    }
   }
 }
 
@@ -2617,21 +3056,46 @@ function renderHostBookings(bookings) {
   const tableEl = getEl('host-bookings-table-container');
 
   if (previewEl) {
-    const pending = bookings.filter(b => b.status === 'pending').slice(0, 4);
-    previewEl.innerHTML = pending.length
-      ? pending.map(b => `
-          <div style="padding:12px; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:var(--radius-md); margin-bottom:8px;">
-            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+    const actionable = bookings.filter(b => ['pending', 'confirmed', 'active'].includes(b.status)).slice(0, 6);
+    previewEl.innerHTML = actionable.length
+      ? actionable.map(b => {
+          const isPending = b.status === 'pending';
+          const isConfirmed = ['confirmed', 'active', 'completed'].includes(b.status);
+          const contactCard = isConfirmed
+            ? buildContactExchangeHtml(
+                'driver',
+                b.driver_name || 'EV Driver',
+                b.driver_phone,
+                Boolean(b.driver_contact_consent),
+                b.id,
+                Boolean(b.host_contact_consent),
+                'Share my phone number with this driver'
+              )
+            : '';
+
+          return `
+          <div id="host-preview-${escapeHtml(b.id)}" style="padding:12px; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:var(--radius-md); margin-bottom:10px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:4px;">
               <strong style="font-size:13px;">${escapeHtml(b.driver_name)}</strong>
-              <span class="tabular" style="font-size:12px; color:var(--accent-green);">Net ${formatInr(b.host_payout)}</span>
+              <span class="status-badge ${badgeClass(b.status)}"><span class="status-dot ${statusDotClass(b.status)}"></span>${escapeHtml(formatStatusLabel(b.status))}</span>
             </div>
-            <div style="font-size:11px; color:var(--text-secondary); margin-bottom:8px;">${escapeHtml(b.charger_name)} | ${escapeHtml(b.booking_date)} ${escapeHtml(b.start_time)}-${escapeHtml(b.end_time)}</div>
-            <div style="display:flex; gap:6px;">
-              <button class="btn-table-action approve" onclick="handleHostBookingAction('${escapeHtml(b.id)}', 'accept')">Accept</button>
-              <button class="btn-table-action reject" onclick="handleHostBookingAction('${escapeHtml(b.id)}', 'reject')">Reject</button>
+            <div style="font-size:11px; color:var(--text-secondary); margin-bottom:6px;">
+              ${escapeHtml(b.booking_code)} &bull; ${escapeHtml(b.charger_name)}<br>
+              ${escapeHtml(b.booking_date)} (${escapeHtml(b.start_time)}-${escapeHtml(b.end_time)}) &bull; Net <strong class="tabular" style="color:var(--accent-green);">${formatInr(b.host_payout)}</strong>
             </div>
-          </div>`).join('')
-      : '<div style="font-size:12px; color:var(--text-muted); padding:10px 0;">No pending requests right now. New bookings appear here.</div>';
+            ${isPending ? `
+              <label class="consent-toggle-row" style="margin:6px 0 8px; padding:7px 9px; font-size:11px;">
+                <input type="checkbox" id="host-consent-prev-${escapeHtml(b.id)}" checked>
+                <span>Share my registered phone number with ${escapeHtml(b.driver_name)} on acceptance</span>
+              </label>
+              <div style="display:flex; gap:8px;">
+                <button class="btn-table-action approve" style="flex:1; min-height:36px;" onclick="handleHostBookingAction('${escapeHtml(b.id)}', 'accept', this, 'host-consent-prev-${escapeHtml(b.id)}')">Accept Booking</button>
+                <button class="btn-table-action reject" style="flex:1; min-height:36px;" onclick="handleHostBookingAction('${escapeHtml(b.id)}', 'reject', this)">Reject</button>
+              </div>` : ''}
+            ${contactCard}
+          </div>`;
+        }).join('')
+      : '<div style="font-size:12px; color:var(--text-muted); padding:10px 0;">No pending or confirmed requests right now. New requests appear here.</div>';
   }
 
   if (tableEl) {
@@ -2641,39 +3105,51 @@ function renderHostBookings(bookings) {
       return;
     }
 
-    tableEl.innerHTML = `
-      <div class="table-scroll-wrap">
-        <table class="admin-table">
-          <thead>
-            <tr>
-              <th class="admin-th">Booking</th>
-              <th class="admin-th">Driver</th>
-              <th class="admin-th">Charger</th>
-              <th class="admin-th">Slot Window</th>
-              <th class="admin-th">Host Payout</th>
-              <th class="admin-th">Status</th>
-              <th class="admin-th">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${filtered.map(b => `
-              <tr>
-                <td class="admin-td tabular">${escapeHtml(b.booking_code)}</td>
-                <td class="admin-td">${escapeHtml(b.driver_name)}</td>
-                <td class="admin-td">${escapeHtml(b.charger_name)}</td>
-                <td class="admin-td tabular">${escapeHtml(b.booking_date)} ${escapeHtml(b.start_time)}-${escapeHtml(b.end_time)}</td>
-                <td class="admin-td tabular">${formatInr(b.host_payout)}</td>
-                <td class="admin-td"><span class="status-badge ${badgeClass(b.status)}"><span class="status-dot ${statusDotClass(b.status)}"></span>${escapeHtml(formatStatusLabel(b.status))}</span></td>
-                <td class="admin-td">
-                  ${b.status === 'pending'
-                    ? `<button class="btn-table-action approve" onclick="handleHostBookingAction('${escapeHtml(b.id)}', 'accept')">Accept</button>
-                       <button class="btn-table-action reject" onclick="handleHostBookingAction('${escapeHtml(b.id)}', 'reject')">Reject</button>`
-                    : '<span style="font-size:11px; color:var(--text-muted);">Processed</span>'}
-                </td>
-              </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>`;
+    tableEl.innerHTML = filtered.map(b => {
+      const isPending = b.status === 'pending';
+      const isConfirmed = ['confirmed', 'active', 'completed'].includes(b.status);
+      const isHighlighted = state.highlightedBookingId && (state.highlightedBookingId === b.id || state.highlightedBookingId === b.booking_code);
+      const contactCard = isConfirmed
+        ? buildContactExchangeHtml(
+            'driver',
+            b.driver_name || 'EV Driver',
+            b.driver_phone,
+            Boolean(b.driver_contact_consent),
+            b.id,
+            Boolean(b.host_contact_consent),
+            'Share my registered phone number with the driver'
+          )
+        : '';
+
+      return `
+        <div id="booking-card-${escapeHtml(b.id)}" data-booking-id="${escapeHtml(b.id)}" class="${isHighlighted ? 'booking-card-highlighted' : ''}" style="padding:14px; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:var(--radius-md); margin-bottom:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap; margin-bottom:6px;">
+            <div>
+              <div style="font-size:14px; font-weight:600; color:var(--text-primary);">${escapeHtml(b.charger_name)} &bull; ${escapeHtml(b.driver_name)}</div>
+              <div style="font-size:12px; color:var(--text-secondary);">
+                Booking <strong class="tabular">${escapeHtml(b.booking_code)}</strong> | ${escapeHtml(b.booking_date)} (${escapeHtml(b.start_time)} - ${escapeHtml(b.end_time)})
+              </div>
+            </div>
+            <span class="status-badge ${badgeClass(b.status)}"><span class="status-dot ${statusDotClass(b.status)}"></span>${escapeHtml(formatStatusLabel(b.status))}</span>
+          </div>
+
+          <div class="tabular" style="font-size:12px; color:var(--text-secondary); margin-bottom:8px;">
+            Host Payout: <strong style="color:var(--accent-green);">${formatInr(b.host_payout)}</strong> (100% of energy/slot base tariff)
+          </div>
+
+          ${isPending ? `
+            <label class="consent-toggle-row" style="margin-bottom:10px;">
+              <input type="checkbox" id="host-consent-${escapeHtml(b.id)}" checked>
+              <span>Consent to share my phone number with <strong>${escapeHtml(b.driver_name)}</strong> after accepting</span>
+            </label>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button class="btn-bolt btn-sm" style="flex:1;" onclick="handleHostBookingAction('${escapeHtml(b.id)}', 'accept', this, 'host-consent-${escapeHtml(b.id)}')">Accept Booking</button>
+              <button class="btn-danger btn-sm" style="flex:1;" onclick="handleHostBookingAction('${escapeHtml(b.id)}', 'reject', this)">Reject &amp; Refund</button>
+            </div>` : ''}
+
+          ${contactCard}
+        </div>`;
+    }).join('');
   }
 }
 
@@ -2686,14 +3162,24 @@ function filterHostBookings(status, btn) {
   renderHostBookings(state.hostCache.bookings || []);
 }
 
-async function handleHostBookingAction(bookingId, action) {
+async function handleHostBookingAction(bookingId, action, btnEl = null, consentInputId = null) {
+  const rowButtons = btnEl && btnEl.parentElement ? Array.from(btnEl.parentElement.querySelectorAll('button')) : [];
+  rowButtons.forEach(b => { b.disabled = true; });
+  if (btnEl) btnEl.textContent = action === 'accept' ? 'Accepting...' : 'Rejecting...';
+
+  const hostContactConsent = consentInputId ? Boolean(getEl(consentInputId)?.checked) : false;
+
   try {
-    await apiFetch(`/host/bookings/${bookingId}/${action}`, { method: 'POST' });
-    showToast(`Booking ${action === 'accept' ? 'confirmed' : 'rejected'}`, 'success');
-    loadHostDashboard();
-    loadNotifications();
+    const res = await apiFetch(`/host/bookings/${bookingId}/${action}`, {
+      method: 'POST',
+      body: action === 'accept' ? { hostContactConsent } : {}
+    });
+    showToast(res.message || `Booking ${action === 'accept' ? 'confirmed' : 'rejected'}`, 'success');
+    await Promise.all([loadHostDashboard(), loadNotifications()]);
   } catch (err) {
     showToast(err.message, 'error');
+    rowButtons.forEach(b => { b.disabled = false; });
+    if (btnEl) btnEl.textContent = action === 'accept' ? 'Accept Booking' : 'Reject';
   }
 }
 

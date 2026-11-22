@@ -4,4 +4,8 @@ chargeease.db
 chargeease.db-shm
 chargeease.db-wal
 .vercel/
+*firebase-adminsdk*.json
+service-account*.json
+google-services.json
+
 

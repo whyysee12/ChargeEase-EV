@@ -4,6 +4,15 @@
 
 const { db, hashPassword, verifyPassword, syncNearbyChargersForLocation } = require('./db');
 const { signToken, rehydrateUserFromToken, rehydrateVaultFromRequest, authenticateUser, checkRole } = require('./auth');
+const {
+  initializeFirebase,
+  getFcmStatus,
+  registerDeviceToken,
+  unregisterDeviceToken,
+  createAndPushNotification
+} = require('./push');
+
+initializeFirebase();
 
 // Utility: parse JSON body from request stream (supports pre-parsed req.body on Vercel)
 function parseBody(req) {
@@ -63,6 +72,88 @@ function calculateDistanceKm(lat1, lon1, lat2, lon2) {
   return parseFloat((R * c).toFixed(1));
 }
 
+function formatDisplayDate(isoDate) {
+  if (!isoDate) return '';
+  const parts = String(isoDate).slice(0, 10).split('-').map(Number);
+  if (parts.length !== 3 || parts.some(Number.isNaN)) return String(isoDate);
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  return `${parts[2]} ${months[(parts[1] - 1) % 12]}, ${parts[0]}`;
+}
+
+function formatTime12h(hhmm) {
+  if (!hhmm || !String(hhmm).includes(':')) return String(hhmm || '');
+  const [hRaw, mRaw] = String(hhmm).split(':');
+  let h = parseInt(hRaw, 10);
+  const m = String(parseInt(mRaw, 10) || 0).padStart(2, '0');
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12;
+  if (h === 0) h = 12;
+  return `${String(h).padStart(2, '0')}:${m} ${ampm}`;
+}
+
+function expireStalePendingBookings() {
+  const expired = db.prepare(`
+    SELECT b.*, c.name AS charger_name
+    FROM bookings b
+    LEFT JOIN chargers c ON b.charger_id = c.id
+    WHERE b.status = 'pending'
+      AND b.pending_expires_at IS NOT NULL
+      AND b.pending_expires_at < datetime('now')
+      AND b.refunded_at IS NULL
+  `).all();
+
+  if (!expired.length) return [];
+
+  db.exec('BEGIN TRANSACTION;');
+  try {
+    for (const bk of expired) {
+      const upd = db.prepare(`
+        UPDATE bookings
+        SET status = 'expired',
+            payment_status = 'refunded',
+            refunded_at = datetime('now'),
+            cancellation_reason = 'Pending approval window expired (30 mins)'
+        WHERE id = ? AND status = 'pending' AND refunded_at IS NULL
+      `).run(bk.id);
+
+      if (upd.changes === 1) {
+        db.prepare('UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?').run(bk.total_amount, bk.driver_id);
+        db.prepare(`
+          INSERT OR IGNORE INTO payments (id, user_id, booking_id, amount, payment_method, transaction_ref, status, type, description)
+          VALUES (?, ?, ?, ?, 'WALLET', ?, 'success', 'refund', ?)
+        `).run('pay-exp-' + bk.id, bk.driver_id, bk.id, bk.total_amount, 'EXP-' + bk.id, `Auto-refund for expired pending slot ${bk.booking_code}`);
+      }
+    }
+    db.exec('COMMIT;');
+  } catch (err) {
+    db.exec('ROLLBACK;');
+  }
+  return expired;
+}
+
+function sanitizeContactForUser(bk, viewerId) {
+  if (!bk) return null;
+  const isParticipant = bk.driver_id === viewerId || bk.host_id === viewerId;
+  if (!isParticipant) return null;
+  const isConfirmedOrLater = ['confirmed', 'active', 'completed'].includes(bk.status);
+  const hostConsented = Boolean(bk.host_contact_consent);
+  const driverConsented = Boolean(bk.driver_contact_consent);
+
+  return {
+    bookingId: bk.id,
+    bookingCode: bk.booking_code,
+    status: bk.status,
+    isConfirmed: isConfirmedOrLater,
+    hostName: bk.host_name,
+    hostPhone: (isConfirmedOrLater && hostConsented) ? bk.host_phone : null,
+    hostContactConsent: hostConsented,
+    driverName: bk.driver_name,
+    driverPhone: (isConfirmedOrLater && driverConsented) ? bk.driver_phone : null,
+    driverContactConsent: driverConsented,
+    chargerAddress: isConfirmedOrLater ? bk.charger_address : `${bk.charger_city || 'Corridor'} (Unlocked upon confirmation)`
+  };
+}
+
 // Main API Handler Router
 async function handleApiRequest(req, res, pathname, queryParams) {
   try {
@@ -81,6 +172,7 @@ async function handleApiRequest(req, res, pathname, queryParams) {
         version: '5.3.0',
         buildVersion: APP_BUILD_VERSION,
         apkDownloadUrl: APK_DOWNLOAD_URL,
+        fcm: getFcmStatus(),
         db: 'SQLite Connected',
         timestamp: new Date().toISOString()
       }, { 'Cache-Control': 'no-store' });
@@ -764,9 +856,14 @@ async function handleApiRequest(req, res, pathname, queryParams) {
     if (pathname === '/api/driver/dashboard' && req.method === 'GET') {
       if (!user) return sendJson(res, 401, { error: 'Authentication required' });
 
+      expireStalePendingBookings();
+
       const activeBooking = db.prepare(`
-        SELECT b.*, c.name AS charger_name, c.address AS charger_address, c.access_instructions,
-               c.code AS charger_code, c.power_kw, c.connector_type, u.name AS host_name, u.phone AS host_phone
+        SELECT b.*, c.name AS charger_name,
+               CASE WHEN b.status IN ('confirmed', 'active', 'completed') THEN c.address ELSE c.city || ' (Protected until host approval)' END AS charger_address,
+               CASE WHEN b.status IN ('confirmed', 'active', 'completed') THEN c.access_instructions ELSE 'Unlocked upon host approval' END AS access_instructions,
+               c.code AS charger_code, c.power_kw, c.connector_type, u.name AS host_name,
+               CASE WHEN b.status IN ('confirmed', 'active', 'completed') AND COALESCE(b.host_contact_consent, 0) = 1 THEN u.phone ELSE NULL END AS host_phone
         FROM bookings b
         JOIN chargers c ON b.charger_id = c.id
         JOIN users u ON b.host_id = u.id
@@ -779,7 +876,7 @@ async function handleApiRequest(req, res, pathname, queryParams) {
         SELECT b.*, c.name AS charger_name,
                CASE WHEN b.status IN ('confirmed', 'active', 'completed') THEN c.address ELSE c.city || ' (Protected until confirmed)' END AS charger_address,
                c.code AS charger_code, c.power_kw, c.connector_type, u.name AS host_name,
-               CASE WHEN b.status IN ('confirmed', 'active', 'completed') THEN u.phone ELSE NULL END AS host_phone
+               CASE WHEN b.status IN ('confirmed', 'active', 'completed') AND COALESCE(b.host_contact_consent, 0) = 1 THEN u.phone ELSE NULL END AS host_phone
         FROM bookings b
         JOIN chargers c ON b.charger_id = c.id
         JOIN users u ON b.host_id = u.id
@@ -948,9 +1045,11 @@ async function handleApiRequest(req, res, pathname, queryParams) {
     // 3. BOOKINGS & CONCURRENCY SLOT LOCKING
     // =========================================================
 
-    // Create Booking (with Overlap Prevention & Slot Lock)
+    // Create Booking (with Overlap Prevention, Pending Approval & FCM Notification to Host)
     if (pathname === '/api/bookings' && req.method === 'POST') {
       if (!user) return sendJson(res, 401, { error: 'Authentication required' });
+
+      expireStalePendingBookings();
 
       const body = await parseBody(req);
       const chargerId = body.chargerId || body.charger_id;
@@ -960,6 +1059,7 @@ async function handleApiRequest(req, res, pathname, queryParams) {
       const durationMins = body.durationMins || body.duration_mins;
       const billingType = body.billingType || body.billing_type;
       const estimatedKwh = body.estimatedKwh || body.estimated_kwh;
+      const driverContactConsent = (body.driverContactConsent ?? body.driver_contact_consent) ? 1 : 0;
 
       if (!chargerId || !bookingDate || !startTime || !durationMins) {
         return sendJson(res, 400, { error: 'Charger, date, start time, and duration are required' });
@@ -977,9 +1077,9 @@ async function handleApiRequest(req, res, pathname, queryParams) {
       const endM = endTotalMins % 60;
       const endTime = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
 
-      // ATOMIC CONCURRENCY CHECK: Prevent Overlapping Bookings on the Same Charger
+      // ATOMIC CONCURRENCY CHECK: Prevent Overlapping Bookings (including active pending holds)
       const overlap = db.prepare(`
-        SELECT id, booking_code, start_time, end_time
+        SELECT id, booking_code, start_time, end_time, status
         FROM bookings
         WHERE charger_id = ?
           AND booking_date = ?
@@ -1021,103 +1121,134 @@ async function handleApiRequest(req, res, pathname, queryParams) {
 
       const bookingId = 'bk-' + Date.now();
       const bookingCode = 'CE-BK-' + Math.floor(1000 + Math.random() * 9000);
+      const pendingExpiresAt = new Date(Date.now() + 30 * 60000).toISOString().replace('T', ' ').slice(0, 19);
 
       db.exec('BEGIN TRANSACTION;');
       try {
-        // Deduct from driver wallet
+        // Reserve payment escrow from driver wallet
         db.prepare("UPDATE users SET wallet_balance = wallet_balance - ?, updated_at = datetime('now') WHERE id = ?")
           .run(totalAmount, user.id);
 
-        // Insert booking
+        // Insert booking as PENDING HOST APPROVAL (30-minute hold window)
         db.prepare(`
           INSERT INTO bookings (
             id, booking_code, driver_id, host_id, charger_id, vehicle_id,
             booking_date, start_time, end_time, duration_mins, status,
             billing_type, estimated_kwh, base_amount, platform_fee, gst_fee,
-            deposit_amount, total_amount, host_payout, payment_status
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, ?, ?, ?, ?, 'paid')
+            deposit_amount, total_amount, host_payout, payment_status,
+            driver_contact_consent, host_contact_consent, pending_expires_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, 'paid', ?, 0, ?)
         `).run(
           bookingId, bookingCode, user.id, charger.host_id, charger.id, vehicleId || null,
           bookingDate, startTime, endTime, parseInt(durationMins),
           isTime ? 'time' : 'metered',
           isTime ? null : (parseFloat(estimatedKwh) || 5.0),
-          baseAmount, platformFee, gstFee, depositAmount, totalAmount, hostPayout
+          baseAmount, platformFee, gstFee, depositAmount, totalAmount, hostPayout,
+          driverContactConsent, pendingExpiresAt
         );
 
         // Transaction record
         db.prepare(`
           INSERT INTO payments (id, user_id, booking_id, amount, payment_method, transaction_ref, status, type, description)
           VALUES (?, ?, ?, ?, 'WALLET', ?, 'success', 'booking_payment', ?)
-        `).run('pay-' + Date.now(), user.id, bookingId, totalAmount, 'TXN-' + Date.now(), `Slot booking ${bookingCode} for ${charger.name}`);
-
-        // Driver notification
-        db.prepare(`
-          INSERT INTO notifications (id, user_id, title, message, type)
-          VALUES (?, ?, ?, ?, 'booking')
-        `).run('notif-' + Date.now(), user.id, 'Booking Confirmed', `Your slot ${bookingCode} at ${charger.name} is confirmed for ${bookingDate} at ${startTime}.`);
-
-        // Host notification
-        db.prepare(`
-          INSERT INTO notifications (id, user_id, title, message, type)
-          VALUES (?, ?, ?, ?, 'host')
-        `).run('notif-' + (Date.now() + 1), charger.host_id, 'New Confirmed Booking', `Driver ${user.name} booked ${charger.name} for ${bookingDate} (${startTime} - ${endTime}).`);
+        `).run('pay-' + Date.now(), user.id, bookingId, totalAmount, 'TXN-' + Date.now(), `Slot request ${bookingCode} hold for ${charger.name}`);
 
         db.exec('COMMIT;');
-
-        return sendJson(res, 201, {
-          success: true,
-          message: 'Booking successfully confirmed with slot lock',
-          booking: {
-            id: bookingId,
-            bookingCode,
-            booking_code: bookingCode,
-            driver_id: user.id,
-            host_id: charger.host_id,
-            chargerId: charger.id,
-            charger_id: charger.id,
-            chargerName: charger.name,
-            charger_name: charger.name,
-            charger_address: charger.address,
-            bookingDate,
-            booking_date: bookingDate,
-            startTime,
-            start_time: startTime,
-            endTime,
-            end_time: endTime,
-            durationMins: parseInt(durationMins),
-            duration_mins: parseInt(durationMins),
-            status: 'confirmed',
-            totalAmount,
-            total_amount: totalAmount,
-            base_amount: baseAmount,
-            platformFee,
-            platform_fee: platformFee,
-            gstFee,
-            gst_fee: gstFee,
-            hostPayout,
-            host_payout: hostPayout,
-            billingType: isTime ? 'time' : 'metered',
-            billing_type: isTime ? 'time' : 'metered',
-            walletBalanceRemaining: user.wallet_balance - totalAmount
-          }
-        });
       } catch (err) {
         db.exec('ROLLBACK;');
         throw err;
       }
+
+      const dateHuman = formatDisplayDate(bookingDate);
+      const start12 = formatTime12h(startTime);
+      const end12 = formatTime12h(endTime);
+
+      // Post-commit DB + FCM notifications (failures here do NOT rollback the booking transaction)
+      const hostPushOutcome = await createAndPushNotification(charger.host_id, {
+        title: 'New Charging Booking Request',
+        message: `${user.name} has requested your charger for ${dateHuman}, from ${start12} to ${end12}. Open ChargeEase to review and respond.`,
+        type: 'host',
+        bookingId,
+        bookingReference: bookingCode,
+        eventKey: `bk-req-host-${bookingId}`,
+        action: 'REVIEW_BOOKING',
+        route: 'host-bookings',
+        targetRole: 'host'
+      });
+
+      await createAndPushNotification(user.id, {
+        title: 'Booking Request Sent (Pending Approval)',
+        message: `Your booking request (${bookingCode}) at ${charger.name} for ${dateHuman} (${start12} - ${end12}) is pending host approval.`,
+        type: 'booking',
+        bookingId,
+        bookingReference: bookingCode,
+        eventKey: `bk-req-drv-${bookingId}`,
+        action: 'VIEW_BOOKING',
+        route: 'driver-bookings',
+        targetRole: 'driver'
+      });
+
+      return sendJson(res, 201, {
+        success: true,
+        message: 'Your booking request has been sent. Waiting for host approval.',
+        statusLabel: 'PENDING HOST APPROVAL',
+        hostNotification: hostPushOutcome,
+        booking: {
+          id: bookingId,
+          bookingCode,
+          booking_code: bookingCode,
+          driver_id: user.id,
+          host_id: charger.host_id,
+          chargerId: charger.id,
+          charger_id: charger.id,
+          chargerName: charger.name,
+          charger_name: charger.name,
+          charger_address: `${charger.city || 'Delhi NCR'} (Protected until host approval)`,
+          bookingDate,
+          booking_date: bookingDate,
+          startTime,
+          start_time: startTime,
+          endTime,
+          end_time: endTime,
+          durationMins: parseInt(durationMins),
+          duration_mins: parseInt(durationMins),
+          status: 'pending',
+          statusLabel: 'PENDING HOST APPROVAL',
+          pendingExpiresAt,
+          pending_expires_at: pendingExpiresAt,
+          driverContactConsent: Boolean(driverContactConsent),
+          driver_contact_consent: driverContactConsent,
+          hostContactConsent: false,
+          host_contact_consent: 0,
+          totalAmount,
+          total_amount: totalAmount,
+          base_amount: baseAmount,
+          platformFee,
+          platform_fee: platformFee,
+          gstFee,
+          gst_fee: gstFee,
+          hostPayout,
+          host_payout: hostPayout,
+          billingType: isTime ? 'time' : 'metered',
+          billing_type: isTime ? 'time' : 'metered',
+          walletBalanceRemaining: user.wallet_balance - totalAmount
+        }
+      });
     }
 
-    // Driver Bookings List
+    // Driver Bookings List (with strict contact privacy & confirmation checks)
     if (pathname === '/api/driver/bookings' && req.method === 'GET') {
       if (!user) return sendJson(res, 401, { error: 'Authentication required' });
+
+      expireStalePendingBookings();
 
       const list = db.prepare(`
         SELECT b.*, c.name AS charger_name,
                CASE WHEN b.status IN ('confirmed', 'active', 'completed') THEN c.address ELSE c.city || ' (Protected until confirmed)' END AS charger_address,
-               CASE WHEN b.status IN ('confirmed', 'active', 'completed') THEN c.access_instructions ELSE 'Unlocked upon host confirmation' END AS access_instructions,
+               CASE WHEN b.status IN ('confirmed', 'active', 'completed') THEN c.access_instructions ELSE 'Unlocked upon host approval' END AS access_instructions,
                c.code AS charger_code,
                c.power_kw, c.connector_type, u.name AS host_name,
-               CASE WHEN b.status IN ('confirmed', 'active', 'completed') THEN u.phone ELSE NULL END AS host_phone
+               CASE WHEN b.status IN ('confirmed', 'active', 'completed') AND COALESCE(b.host_contact_consent, 0) = 1 THEN u.phone ELSE NULL END AS host_phone
         FROM bookings b
         JOIN chargers c ON b.charger_id = c.id
         JOIN users u ON b.host_id = u.id
@@ -1139,15 +1270,19 @@ async function handleApiRequest(req, res, pathname, queryParams) {
         return sendJson(res, 403, { error: 'Unauthorized to cancel this booking' });
       }
 
-      if (['cancelled', 'completed', 'rejected'].includes(bk.status)) {
+      if (['cancelled', 'completed', 'rejected', 'expired'].includes(bk.status)) {
         return sendJson(res, 400, { error: `Cannot cancel a booking that is already ${bk.status}` });
       }
 
       db.exec('BEGIN TRANSACTION;');
       try {
-        db.prepare("UPDATE bookings SET status = 'cancelled', cancellation_reason = 'Cancelled by user' WHERE id = ?").run(bookingId);
+        const upd = db.prepare("UPDATE bookings SET status = 'cancelled', payment_status = 'refunded', refunded_at = datetime('now'), cancellation_reason = 'Cancelled by driver' WHERE id = ? AND status IN ('pending', 'confirmed') AND refunded_at IS NULL").run(bookingId);
+        if (upd.changes === 0) {
+          db.exec('ROLLBACK;');
+          return sendJson(res, 409, { error: 'Booking already cancelled or refunded' });
+        }
 
-        // Refund driver
+        // Refund driver once
         db.prepare('UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?').run(bk.total_amount, bk.driver_id);
 
         db.prepare(`
@@ -1155,18 +1290,129 @@ async function handleApiRequest(req, res, pathname, queryParams) {
           VALUES (?, ?, ?, ?, 'WALLET', ?, 'success', 'refund', ?)
         `).run('pay-' + Date.now(), bk.driver_id, bookingId, bk.total_amount, 'REF-' + Date.now(), `Refund for cancelled booking ${bk.booking_code}`);
 
-        db.prepare(`
-          INSERT INTO notifications (id, user_id, title, message, type)
-          VALUES (?, ?, ?, ?, 'booking')
-        `).run('notif-' + Date.now(), bk.driver_id, 'Booking Cancelled & Refunded', `Your booking ${bk.booking_code} was cancelled. ₹${bk.total_amount.toFixed(2)} refunded to wallet.`);
-
         db.exec('COMMIT;');
-
-        return sendJson(res, 200, { success: true, message: 'Booking cancelled and refunded successfully' });
       } catch (err) {
         db.exec('ROLLBACK;');
         throw err;
       }
+
+      await createAndPushNotification(bk.driver_id, {
+        title: 'Booking Cancelled & Refunded',
+        message: `Your booking ${bk.booking_code} was cancelled. ₹${bk.total_amount.toFixed(2)} refunded to wallet.`,
+        type: 'booking',
+        bookingId: bk.id,
+        bookingReference: bk.booking_code,
+        eventKey: `bk-cancel-drv-${bk.id}`,
+        action: 'VIEW_BOOKING',
+        route: 'driver-bookings',
+        targetRole: 'driver'
+      });
+
+      await createAndPushNotification(bk.host_id, {
+        title: 'Booking Cancelled by Driver',
+        message: `Driver cancelled booking ${bk.booking_code} for ${bk.booking_date} (${bk.start_time}). The slot is available again.`,
+        type: 'host',
+        bookingId: bk.id,
+        bookingReference: bk.booking_code,
+        eventKey: `bk-cancel-host-${bk.id}`,
+        action: 'VIEW_BOOKING',
+        route: 'host-bookings',
+        targetRole: 'host'
+      });
+
+      return sendJson(res, 200, { success: true, message: 'Booking cancelled and refunded successfully' });
+    }
+
+    // Update Contact Consent (Driver or Host on their own booking)
+    if (pathname.match(/^\/api\/bookings\/([a-zA-Z0-9_-]+)\/contact-consent$/) && (req.method === 'PUT' || req.method === 'POST')) {
+      if (!user) return sendJson(res, 401, { error: 'Authentication required' });
+      const bookingId = pathname.split('/')[3];
+      const body = await parseBody(req);
+      const consent = body.consent ? 1 : 0;
+
+      const bk = db.prepare('SELECT * FROM bookings WHERE id = ?').get(bookingId);
+      if (!bk) return sendJson(res, 404, { error: 'Booking not found' });
+
+      if (bk.driver_id === user.id) {
+        db.prepare('UPDATE bookings SET driver_contact_consent = ? WHERE id = ?').run(consent, bookingId);
+      } else if (bk.host_id === user.id) {
+        db.prepare('UPDATE bookings SET host_contact_consent = ? WHERE id = ?').run(consent, bookingId);
+      } else {
+        return sendJson(res, 403, { error: 'Unauthorized: only booking participants can update contact consent' });
+      }
+
+      const refreshed = db.prepare(`
+        SELECT b.*, c.name AS charger_name, c.address AS charger_address, c.city AS charger_city,
+               d.name AS driver_name, d.phone AS driver_phone,
+               h.name AS host_name, h.phone AS host_phone
+        FROM bookings b
+        JOIN chargers c ON b.charger_id = c.id
+        JOIN users d ON b.driver_id = d.id
+        JOIN users h ON b.host_id = h.id
+        WHERE b.id = ?
+      `).get(bookingId);
+
+      return sendJson(res, 200, {
+        success: true,
+        message: consent ? 'Phone number sharing enabled for this confirmed booking' : 'Phone number sharing disabled',
+        contact: sanitizeContactForUser(refreshed, user.id)
+      });
+    }
+
+    // Protected Booking Contact Details (Strict Participant + Confirmation + Consent Verification)
+    if (pathname.match(/^\/api\/bookings\/([a-zA-Z0-9_-]+)\/contact$/) && req.method === 'GET') {
+      if (!user) return sendJson(res, 401, { error: 'Authentication required' });
+      const bookingId = pathname.split('/')[3];
+
+      const bk = db.prepare(`
+        SELECT b.*, c.name AS charger_name, c.address AS charger_address, c.city AS charger_city,
+               d.name AS driver_name, d.phone AS driver_phone,
+               h.name AS host_name, h.phone AS host_phone
+        FROM bookings b
+        JOIN chargers c ON b.charger_id = c.id
+        JOIN users d ON b.driver_id = d.id
+        JOIN users h ON b.host_id = h.id
+        WHERE b.id = ? OR b.booking_code = ?
+      `).get(bookingId, bookingId);
+
+      if (!bk) return sendJson(res, 404, { error: 'Booking not found' });
+      if (bk.driver_id !== user.id && bk.host_id !== user.id) {
+        return sendJson(res, 403, { error: 'Unauthorized: you are not a participant of this booking' });
+      }
+
+      return sendJson(res, 200, {
+        success: true,
+        contact: sanitizeContactForUser(bk, user.id)
+      });
+    }
+
+    // Single Booking Lookup (for Notification Deep-Linking, Ownership Protected)
+    if (pathname.match(/^\/api\/bookings\/([a-zA-Z0-9_-]+)$/) && req.method === 'GET') {
+      if (!user) return sendJson(res, 401, { error: 'Authentication required' });
+      const bookingId = pathname.split('/')[3];
+
+      const bk = db.prepare(`
+        SELECT b.*, c.name AS charger_name, c.code AS charger_code, c.city AS charger_city,
+               c.power_kw, c.connector_type,
+               CASE WHEN b.status IN ('confirmed', 'active', 'completed') THEN c.address ELSE c.city || ' (Protected until confirmed)' END AS charger_address,
+               CASE WHEN b.status IN ('confirmed', 'active', 'completed') THEN c.access_instructions ELSE 'Unlocked upon host approval' END AS access_instructions,
+               d.name AS driver_name,
+               CASE WHEN b.status IN ('confirmed', 'active', 'completed') AND COALESCE(b.driver_contact_consent, 0) = 1 THEN d.phone ELSE NULL END AS driver_phone,
+               h.name AS host_name,
+               CASE WHEN b.status IN ('confirmed', 'active', 'completed') AND COALESCE(b.host_contact_consent, 0) = 1 THEN h.phone ELSE NULL END AS host_phone
+        FROM bookings b
+        JOIN chargers c ON b.charger_id = c.id
+        JOIN users d ON b.driver_id = d.id
+        JOIN users h ON b.host_id = h.id
+        WHERE b.id = ? OR b.booking_code = ?
+      `).get(bookingId, bookingId);
+
+      if (!bk) return sendJson(res, 404, { error: 'Booking not found' });
+      if (bk.driver_id !== user.id && bk.host_id !== user.id) {
+        return sendJson(res, 403, { error: 'Unauthorized to view this booking' });
+      }
+
+      return sendJson(res, 200, { success: true, booking: bk });
     }
 
     // Complete Booking Slot (preserves completed booking in history & survives serverless rotation)
@@ -1233,7 +1479,8 @@ async function handleApiRequest(req, res, pathname, queryParams) {
 
       const hydrated = db.prepare(`
         SELECT b.*, c.name AS charger_name, c.address AS charger_address, c.code AS charger_code,
-               c.power_kw, c.connector_type, u.name AS host_name, u.phone AS host_phone
+               c.power_kw, c.connector_type, u.name AS host_name,
+               CASE WHEN COALESCE(b.host_contact_consent, 0) = 1 THEN u.phone ELSE NULL END AS host_phone
         FROM bookings b
         JOIN chargers c ON b.charger_id = c.id
         JOIN users u ON b.host_id = u.id
@@ -1272,14 +1519,18 @@ async function handleApiRequest(req, res, pathname, queryParams) {
 
       const hostChargers = db.prepare('SELECT * FROM chargers WHERE host_id = ? ORDER BY created_at DESC').all(user.id);
 
+      expireStalePendingBookings();
+
       const recentHostBookings = db.prepare(`
-        SELECT b.*, c.name AS charger_name, u.name AS driver_name, u.phone AS driver_phone
+        SELECT b.*, c.name AS charger_name, c.code AS charger_code, c.address AS charger_address,
+               u.name AS driver_name,
+               CASE WHEN b.status IN ('confirmed', 'active', 'completed') AND COALESCE(b.driver_contact_consent, 0) = 1 THEN u.phone ELSE NULL END AS driver_phone
         FROM bookings b
         JOIN chargers c ON b.charger_id = c.id
         JOIN users u ON b.driver_id = u.id
         WHERE b.host_id = ?
         ORDER BY b.created_at DESC
-        LIMIT 10
+        LIMIT 30
       `).all(user.id);
 
       return sendJson(res, 200, {
@@ -1481,42 +1732,161 @@ async function handleApiRequest(req, res, pathname, queryParams) {
       });
     }
 
-    // Host Accept / Reject Booking
-    if (pathname.match(/^\/api\/host\/bookings\/([a-zA-Z0-9_-]+)\/(accept|reject)$/) && req.method === 'POST') {
+    // Host Accept / Reject Booking (Atomic State Transition + Dual FCM Push + Single Refund)
+    if ((pathname.match(/^\/api\/host\/bookings\/([a-zA-Z0-9_-]+)\/(accept|reject)$/) || pathname.match(/^\/api\/bookings\/([a-zA-Z0-9_-]+)\/(accept|reject)$/)) && req.method === 'POST') {
       if (!user) return sendJson(res, 401, { error: 'Authentication required' });
       const parts = pathname.split('/');
-      const bookingId = parts[4];
-      const action = parts[5]; // 'accept' or 'reject'
+      const isHostPrefix = parts[2] === 'host';
+      const bookingId = isHostPrefix ? parts[4] : parts[3];
+      const action = isHostPrefix ? parts[5] : parts[4]; // 'accept' or 'reject'
+      const body = await parseBody(req).catch(() => ({}));
 
-      const bk = db.prepare('SELECT * FROM bookings WHERE id = ?').get(bookingId);
+      expireStalePendingBookings();
+
+      const bk = db.prepare(`
+        SELECT b.*, c.name AS charger_name, c.host_id AS charger_host_id,
+               d.name AS driver_name, h.name AS host_name
+        FROM bookings b
+        JOIN chargers c ON b.charger_id = c.id
+        JOIN users d ON b.driver_id = d.id
+        JOIN users h ON b.host_id = h.id
+        WHERE b.id = ? OR b.booking_code = ?
+      `).get(bookingId, bookingId);
       if (!bk) return sendJson(res, 404, { error: 'Booking not found' });
-      if (bk.host_id !== user.id && user.role !== 'admin') {
-        return sendJson(res, 403, { error: 'Unauthorized to manage this booking' });
+
+      if (bk.host_id !== user.id && bk.charger_host_id !== user.id && user.role !== 'admin') {
+        return sendJson(res, 403, { error: 'Unauthorized: only the charger owner can accept or reject this booking' });
       }
 
+      if (bk.status !== 'pending') {
+        if (action === 'accept' && bk.status === 'confirmed') {
+          return sendJson(res, 409, { error: 'Duplicate acceptance prevented: booking is already confirmed' });
+        }
+        if (action === 'reject' && bk.status === 'rejected') {
+          return sendJson(res, 409, { error: 'Booking is already rejected and refunded' });
+        }
+        return sendJson(res, 400, { error: `Cannot ${action} booking because current status is ${bk.status}` });
+      }
+
+      const dateHuman = formatDisplayDate(bk.booking_date);
+      const start12 = formatTime12h(bk.start_time);
+      const end12 = formatTime12h(bk.end_time);
+
       if (action === 'accept') {
-        db.prepare("UPDATE bookings SET status = 'confirmed' WHERE id = ?").run(bookingId);
-        db.prepare(`
-          INSERT INTO notifications (id, user_id, title, message, type)
-          VALUES (?, ?, ?, ?, 'booking')
-        `).run('notif-' + Date.now(), bk.driver_id, 'Booking Accepted', `Host approved your booking ${bk.booking_code}. You are good to charge.`);
-        return sendJson(res, 200, { success: true, message: 'Booking accepted' });
-      } else {
+        const hostConsent = (body.hostContactConsent ?? body.host_contact_consent) ? 1 : 0;
         db.exec('BEGIN TRANSACTION;');
         try {
-          db.prepare("UPDATE bookings SET status = 'rejected', cancellation_reason = 'Host declined request' WHERE id = ?").run(bookingId);
-          // Refund driver
+          const upd = db.prepare(`
+            UPDATE bookings
+            SET status = 'confirmed',
+                host_contact_consent = CASE WHEN ? = 1 THEN 1 ELSE host_contact_consent END,
+                accepted_at = datetime('now')
+            WHERE id = ? AND status = 'pending'
+          `).run(hostConsent, bk.id);
+
+          if (upd.changes !== 1) {
+            db.exec('ROLLBACK;');
+            return sendJson(res, 409, { error: 'Booking status changed concurrently; already processed' });
+          }
+          db.exec('COMMIT;');
+        } catch (err) {
+          db.exec('ROLLBACK;');
+          throw err;
+        }
+
+        // Send notifications to BOTH driver & host cleanly outside DB commit (FCM failures never rollback booking)
+        const driverPush = await createAndPushNotification(bk.driver_id, {
+          title: 'Your EV Charging Session Is Confirmed! ✅',
+          message: `Your booking at ${bk.charger_name} has been accepted by ${bk.host_name}. Your session is scheduled for ${dateHuman}, from ${start12} to ${end12}. Open ChargeEase to view details and contact your host.`,
+          type: 'booking',
+          bookingId: bk.id,
+          bookingReference: bk.booking_code,
+          eventKey: `bk-accepted-drv-${bk.id}`,
+          action: 'OPEN_CONFIRMED_BOOKING',
+          route: 'driver-bookings',
+          targetRole: 'driver'
+        });
+
+        const hostPush = await createAndPushNotification(bk.host_id, {
+          title: 'Charging Session Scheduled! ✅',
+          message: `You have accepted ${bk.driver_name}'s booking for ${bk.charger_name}. The charging session is scheduled for ${dateHuman}, from ${start12} to ${end12}. Open ChargeEase to view details and contact your driver.`,
+          type: 'host',
+          bookingId: bk.id,
+          bookingReference: bk.booking_code,
+          eventKey: `bk-accepted-host-${bk.id}`,
+          action: 'OPEN_CONFIRMED_BOOKING',
+          route: 'host-bookings',
+          targetRole: 'host'
+        });
+
+        return sendJson(res, 200, {
+          success: true,
+          message: 'Booking accepted and both participants notified',
+          status: 'confirmed',
+          hostContactConsent: Boolean(hostConsent || bk.host_contact_consent),
+          notifications: { driverPush, hostPush }
+        });
+      } else {
+        const reason = String(body.reason || 'Host declined request').trim();
+        db.exec('BEGIN TRANSACTION;');
+        try {
+          const upd = db.prepare(`
+            UPDATE bookings
+            SET status = 'rejected',
+                payment_status = 'refunded',
+                rejected_at = datetime('now'),
+                refunded_at = datetime('now'),
+                cancellation_reason = ?
+            WHERE id = ? AND status = 'pending' AND refunded_at IS NULL
+          `).run(reason, bk.id);
+
+          if (upd.changes !== 1) {
+            db.exec('ROLLBACK;');
+            return sendJson(res, 409, { error: 'Booking was already processed or refunded' });
+          }
+
           db.prepare('UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?').run(bk.total_amount, bk.driver_id);
           db.prepare(`
-            INSERT INTO notifications (id, user_id, title, message, type)
-            VALUES (?, ?, ?, ?, 'booking')
-          `).run('notif-' + Date.now(), bk.driver_id, 'Booking Declined & Refunded', `Host was unable to accept booking ${bk.booking_code}. Full refund credited to your wallet.`);
+            INSERT OR IGNORE INTO payments (id, user_id, booking_id, amount, payment_method, transaction_ref, status, type, description)
+            VALUES (?, ?, ?, ?, 'WALLET', ?, 'success', 'refund', ?)
+          `).run('pay-rej-' + bk.id, bk.driver_id, bk.id, bk.total_amount, 'REJ-' + bk.booking_code, `Full refund for declined booking ${bk.booking_code}`);
+
           db.exec('COMMIT;');
-          return sendJson(res, 200, { success: true, message: 'Booking rejected and driver refunded' });
-        } catch (e) {
+        } catch (err) {
           db.exec('ROLLBACK;');
-          throw e;
+          throw err;
         }
+
+        const driverPush = await createAndPushNotification(bk.driver_id, {
+          title: 'Booking Request Declined',
+          message: `Your booking request (${bk.booking_code}) at ${bk.charger_name} for ${dateHuman}, from ${start12} to ${end12} was declined by ${bk.host_name}. Full refund of ₹${Number(bk.total_amount).toFixed(2)} credited to wallet.`,
+          type: 'booking',
+          bookingId: bk.id,
+          bookingReference: bk.booking_code,
+          eventKey: `bk-rejected-drv-${bk.id}`,
+          action: 'VIEW_BOOKING',
+          route: 'driver-bookings',
+          targetRole: 'driver'
+        });
+
+        const hostPush = await createAndPushNotification(bk.host_id, {
+          title: 'Booking Rejection Completed',
+          message: `You rejected ${bk.driver_name}'s booking (${bk.booking_code}) for ${bk.charger_name} on ${dateHuman} (${start12} - ${end12}). The slot is now open.`,
+          type: 'host',
+          bookingId: bk.id,
+          bookingReference: bk.booking_code,
+          eventKey: `bk-rejected-host-${bk.id}`,
+          action: 'VIEW_BOOKING',
+          route: 'host-bookings',
+          targetRole: 'host'
+        });
+
+        return sendJson(res, 200, {
+          success: true,
+          message: 'Booking rejected, driver refunded once, and notifications dispatched',
+          status: 'rejected',
+          notifications: { driverPush, hostPush }
+        });
       }
     }
 
@@ -2103,10 +2473,56 @@ async function handleApiRequest(req, res, pathname, queryParams) {
         SELECT * FROM notifications
         WHERE user_id = ?
         ORDER BY created_at DESC
-        LIMIT 20
+        LIMIT 30
       `).all(user.id);
+      const unreadRow = db.prepare('SELECT COUNT(*) AS count FROM notifications WHERE user_id = ? AND is_read = 0').get(user.id);
 
-      return sendJson(res, 200, { success: true, notifications: notifs });
+      return sendJson(res, 200, {
+        success: true,
+        unreadCount: unreadRow ? unreadRow.count : 0,
+        fcmStatus: getFcmStatus(),
+        notifications: notifs
+      });
+    }
+
+    // FCM Push Status for Logged-in Device & Admin Check
+    if (pathname === '/api/notifications/push-status' && req.method === 'GET') {
+      if (!user) return sendJson(res, 401, { error: 'Authentication required' });
+      const devRow = db.prepare('SELECT COUNT(*) AS count FROM device_tokens WHERE user_id = ? AND is_active = 1').get(user.id);
+      return sendJson(res, 200, {
+        success: true,
+        myDeviceCount: devRow ? devRow.count : 0,
+        fcm: getFcmStatus()
+      });
+    }
+
+    // Register Android FCM Device Token
+    if (pathname === '/api/notifications/register-token' && req.method === 'POST') {
+      if (!user) return sendJson(res, 401, { error: 'Authentication required' });
+      const body = await parseBody(req);
+      try {
+        const device = registerDeviceToken(user.id, body);
+        return sendJson(res, 200, {
+          success: true,
+          message: 'Device registered for Android push notifications',
+          device,
+          fcmStatus: getFcmStatus()
+        });
+      } catch (err) {
+        return sendJson(res, 400, { error: err.message });
+      }
+    }
+
+    // Unregister Android FCM Device Token on Logout
+    if (pathname === '/api/notifications/unregister-token' && req.method === 'POST') {
+      if (!user) return sendJson(res, 401, { error: 'Authentication required' });
+      const body = await parseBody(req).catch(() => ({}));
+      const result = unregisterDeviceToken(user.id, body);
+      return sendJson(res, 200, {
+        success: true,
+        message: 'Device unregistered from push notifications',
+        ...result
+      });
     }
 
     // Mark Notification Read

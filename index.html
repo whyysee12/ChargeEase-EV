@@ -558,6 +558,12 @@
       <div style="font-weight:600; font-size:14px;">Notifications</div>
       <button class="text-link-btn" onclick="markAllNotificationsRead()">Mark all read</button>
     </div>
+    <div id="push-pref-banner" class="push-pref-banner" style="padding:10px 14px; border-bottom:1px solid var(--border-color); background:var(--bg-surface); font-size:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+        <span id="push-pref-status-text" style="color:var(--text-secondary);">Checking push notification status...</span>
+        <button type="button" class="btn-secondary btn-sm" id="push-enable-btn" style="height:28px; padding:0 10px; font-size:11px; display:none;" onclick="requestAndroidNotificationPermission(true)">Enable Alerts</button>
+      </div>
+    </div>
     <div class="notifications-list" id="notifications-list-container"></div>
   </div>
 
@@ -1489,7 +1495,16 @@
           </div>
         </div>
 
-        <button class="btn-bolt" style="width:100%;" onclick="executeCreateBooking()">Confirm booking and lock slot</button>
+        <label class="consent-toggle-row" for="bm-driver-consent">
+          <input type="checkbox" id="bm-driver-consent">
+          <span>Share my registered phone number with the host once accepted (for arrival coordination via Call or WhatsApp).</span>
+        </label>
+
+        <div style="font-size:11px; color:var(--text-secondary); margin-bottom:12px; line-height:1.45;">
+          Slot is held for up to 30 minutes while awaiting host acceptance. You will receive a phone notification as soon as the host responds.
+        </div>
+
+        <button class="btn-bolt" id="bm-submit-btn" style="width:100%;" onclick="executeCreateBooking()">Send Booking Request</button>
       </div>
     </div>
   </div>
